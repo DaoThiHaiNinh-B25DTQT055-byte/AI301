@@ -54,11 +54,28 @@ class DataLoader:
 
     @staticmethod
     def load_default_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-        """Loads default datasets from data/minhan_catalog.xlsx."""
-        excel_path = os.path.join(os.path.dirname(__file__), "data", "minhan_catalog.xlsx")
-        products_df = pd.read_excel(excel_path, sheet_name="Bang_Gia_Ton_Kho")
-        sales_team_df = pd.read_excel(excel_path, sheet_name="Nhan_Vien_Kinh_Doanh")
-        policies_df = pd.read_excel(excel_path, sheet_name="Chinh_Sach_Duyet")
+        """Loads default datasets from data/minhan_catalog.xlsx with automatic CSV fallback for serverless environments."""
+        base_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+        excel_path = os.path.join(base_data_dir, "minhan_catalog.xlsx")
+        
+        # 1. Attempt loading from Excel workbook
+        try:
+            if os.path.exists(excel_path):
+                products_df = pd.read_excel(excel_path, sheet_name="Bang_Gia_Ton_Kho")
+                sales_team_df = pd.read_excel(excel_path, sheet_name="Nhan_Vien_Kinh_Doanh")
+                policies_df = pd.read_excel(excel_path, sheet_name="Chinh_Sach_Duyet")
+                return products_df, sales_team_df, policies_df
+        except Exception:
+            pass
+            
+        # 2. Fallback to individual CSV files (zero-binary dependency, 100% Linux/serverless safe)
+        p_csv = os.path.join(base_data_dir, "bang_gia_ton_kho.csv")
+        s_csv = os.path.join(base_data_dir, "nhan_vien_kinh_doanh.csv")
+        pol_csv = os.path.join(base_data_dir, "chinh_sach_duyet.csv")
+        
+        products_df = pd.read_csv(p_csv, encoding="utf-8-sig")
+        sales_team_df = pd.read_csv(s_csv, encoding="utf-8-sig")
+        policies_df = pd.read_csv(pol_csv, encoding="utf-8-sig")
         return products_df, sales_team_df, policies_df
 
     @staticmethod
@@ -123,6 +140,7 @@ class MinhAnSalesAgent:
             std_p_df["AvailableStock"] = pd.to_numeric(std_p_df["AvailableStock"].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce').fillna(0)
 
         self.products_df = std_p_df
+        self.catalog_df = std_p_df  # Alias for compatibility
         self.sales_team_df = sales_team_df
         self.policies_df = policies_df
         

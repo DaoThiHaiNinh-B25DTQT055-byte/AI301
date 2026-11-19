@@ -1,10 +1,12 @@
+import os
 import json
 from agent_core import DataLoader, MinhAnSalesAgent
 
 p, s, pol = DataLoader.load_default_data()
 agent = MinhAnSalesAgent(p, s, pol)
 
-with open('data/sample_requests.json', encoding='utf-8') as f:
+samples_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'sample_requests.json')
+with open(samples_path, encoding='utf-8') as f:
     samples = json.load(f)
 
 for item in samples:

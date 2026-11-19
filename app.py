@@ -350,7 +350,8 @@ tab_single, tab_batch, tab_analytics, tab_catalog, tab_settings = st.tabs([
 # TAB 1: XỬ LÝ YÊU CẦU ĐƠN LẺ (5-STEP PROCESS THEO SƠ ĐỒ QUY TRÌNH)
 # ====================================================================================================
 with tab_single:
-    with open("data/sample_requests.json", encoding="utf-8") as f:
+    sample_requests_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sample_requests.json")
+    with open(sample_requests_file, encoding="utf-8") as f:
         sample_requests = json.load(f)
         
     sample_options = [t("sample_select_default", lang)] + [
@@ -1018,8 +1019,9 @@ with tab_batch:
         )
     
     batch_list = []
+    sample_requests_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sample_requests.json")
     if batch_source == t("batch_radio_sample", lang):
-        with open("data/sample_requests.json", encoding="utf-8") as f:
+        with open(sample_requests_file, encoding="utf-8") as f:
             batch_list = json.load(f)
     else:
         uploaded_batch = st.file_uploader("Chọn file danh sách (.csv, .xlsx, .json):", type=["xlsx", "csv", "json"])
@@ -1662,8 +1664,12 @@ with tab_settings:
         st.write("")
         if st.button(t("btn_save_key", lang), use_container_width=True):
             if new_key.strip():
-                with open(".env", "w", encoding="utf-8") as f:
-                    f.write(f"GEMINI_API_KEY={new_key.strip()}\n")
+                os.environ["GEMINI_API_KEY"] = new_key.strip()
+                try:
+                    with open(".env", "w", encoding="utf-8") as f:
+                        f.write(f"GEMINI_API_KEY={new_key.strip()}\n")
+                except Exception:
+                    pass
                 st.session_state.agent = MinhAnSalesAgent(
                     st.session_state.catalog_df, 
                     st.session_state.sales_df, 
@@ -1681,3 +1687,14 @@ st.markdown(clean_html(f"""
     {t("footer_text", lang)}
 </div>
 """), unsafe_allow_html=True)
+
+# ==============================================================================
+# 8. VERCEL SERVERLESS RUNTIME ENTRYPOINT COMPATIBILITY
+# ==============================================================================
+# Prevents [PYTHON_ENTRYPOINT_NOT_FOUND] if Vercel inspects app.py directly.
+def handler(request=None, *args, **kwargs):
+    """Fallback handler for Vercel Python runtime discovery."""
+    return {"status": 200, "message": "Minh An AI Sales Operations Center is active."}
+
+app = handler
+application = handler

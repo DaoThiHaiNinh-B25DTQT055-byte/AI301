@@ -16,14 +16,15 @@ from config import (
 print("=== STARTING FULL AUTOMATED TEST SUITE ===")
 
 # TEST 1: Universal File Reader across all 7 sample formats
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 test_files = [
-    'data/test_samples/sample_orders.xlsx',
-    'data/test_samples/sample_orders_vn.csv',
-    'data/test_samples/sample_inquiry.json',
-    'data/test_samples/sample_inquiry.xml',
-    'data/test_samples/sample_rfp.docx',
-    'data/test_samples/sample_email.eml',
-    'data/test_samples/sample_quote.txt'
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_orders.xlsx'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_orders_vn.csv'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_inquiry.json'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_inquiry.xml'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_rfp.docx'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_email.eml'),
+    os.path.join(BASE_DIR, 'data', 'test_samples', 'sample_quote.txt')
 ]
 
 loaded_results = {}
