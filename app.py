@@ -299,7 +299,8 @@ st.markdown(clean_html(f"""
 # ====================================================================================================
 pipeline_sum = sum(item.get("TotalAmount", 0) for item in st.session_state.pipeline_history)
 if "current_result" in st.session_state and st.session_state.current_result:
-    pipeline_sum += st.session_state.current_result.get("evaluation", {}).get("total_final_amount", 0)
+    cur_eval = st.session_state.current_result.get("evaluation") or {}
+    pipeline_sum += cur_eval.get("total_final_amount", 0)
 if pipeline_sum == 0:
     pipeline_sum = 582_500_000
 
@@ -309,9 +310,11 @@ if total_requests_count == 0:
 
 auto_approved_count = sum(1 for item in st.session_state.pipeline_history if "NVKD" in str(item.get("Approval", "")) or "Tự duyệt" in str(item.get("Approval", "")))
 if "current_result" in st.session_state and st.session_state.current_result:
-    if not st.session_state.current_result.get("evaluation", {}).get("needs_manager_approval", True):
+    cur_eval = st.session_state.current_result.get("evaluation") or {}
+    if not cur_eval.get("needs_manager_approval", True):
         auto_approved_count += 1
 auto_rate = (auto_approved_count / total_requests_count * 100) if total_requests_count > 0 else 66.7
+
 
 st.markdown('<div style="margin-top: 14px; margin-bottom: 8px;"></div>', unsafe_allow_html=True)
 ov_col1, ov_col2, ov_col3, ov_col4 = st.columns(4)
@@ -359,11 +362,12 @@ with tab_single:
     if not cur_res:
         c1, c2, c3, c4, c5, c_appr, c6 = "active", "idle", "idle", "idle", "idle", "idle", "idle"
         n1, n2, n3, n4, n5, n_appr, n6 = "1", "2", "3", "4", "5", "—", "6"
-    elif not cur_res.get("parsed_request", {}).get("is_sufficient", False):
+    elif not (cur_res.get("parsed_request") or {}).get("is_sufficient", False):
         c1, c2, c3, c4, c5, c_appr, c6 = "completed", "warning", "idle", "idle", "idle", "idle", "idle"
         n1, n2, n3, n4, n5, n_appr, n6 = "✓", "⚠", "3", "4", "5", "—", "6"
     else:
-        needs_appr = cur_res.get("evaluation", {}).get("needs_manager_approval", False)
+        needs_appr = (cur_res.get("evaluation") or {}).get("needs_manager_approval", False)
+
         c1, c2, c3, c4, c5 = "completed", "completed", "completed", "completed", "completed"
         n1, n2, n3, n4, n5 = "✓", "✓", "✓", "✓", "✓"
         if needs_appr:
@@ -1071,14 +1075,15 @@ with tab_batch:
             with bs1:
                 st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{len(res_df)}</div><div class="stat-kpi-label">{t("batch_kpi_total", lang)}</div></div>'), unsafe_allow_html=True)
             with bs2:
-                suf_c = len(res_df[res_df["Đầy đủ TT"] == "Có"])
+                suf_c = len(res_df[res_df["Đầy đủ TT"] == "Có"]) if ("Đầy đủ TT" in res_df.columns and not res_df.empty) else 0
                 st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{suf_c} / {len(res_df)}</div><div class="stat-kpi-label">{t("batch_kpi_sufficient", lang)}</div></div>'), unsafe_allow_html=True)
             with bs3:
-                mgr_c = len(res_df[res_df["Cấp duyệt"].str.contains("Trưởng phòng|Ban Giám đốc", na=False)])
+                mgr_c = len(res_df[res_df["Cấp duyệt"].str.contains("Trưởng phòng|Ban Giám đốc", na=False)]) if ("Cấp duyệt" in res_df.columns and not res_df.empty) else 0
                 st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{mgr_c}</div><div class="stat-kpi-label">{t("batch_kpi_escalated", lang)}</div></div>'), unsafe_allow_html=True)
             with bs4:
-                val_c = res_df["Giá trị đơn (VNĐ)"].sum()
+                val_c = float(res_df["Giá trị đơn (VNĐ)"].sum()) if ("Giá trị đơn (VNĐ)" in res_df.columns and not res_df.empty) else 0.0
                 st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{val_c:,.0f} đ</div><div class="stat-kpi-label">{t("batch_kpi_pipeline", lang)}</div></div>'), unsafe_allow_html=True)
+
                 
             st.write("")
             render_safe_dataframe(res_df, num_formats={"Giá trị đơn (VNĐ)": "%,.0f đ"}, width="stretch", hide_index=True)

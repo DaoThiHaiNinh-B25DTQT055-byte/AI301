@@ -439,21 +439,23 @@ Website: https://minhan.vn | Hotline: 0912.345.000"""
 
     def assign_sales_rep(self, extracted_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Step 3: Creates Opportunity Profile & Assigns responsible sales rep based on product specialty."""
-        categories = [item["product"].get("Category", "") for item in extracted_items]
+        categories = [(item.get("product") or {}).get("Category", "") for item in extracted_items if isinstance(item, dict)]
         
         candidate = None
         for cat in categories:
+            if not cat:
+                continue
             for rep in self.sales_team:
-                if any(keyword.lower() in rep["Specialty"].lower() for keyword in cat.split("&")):
+                if any(keyword.lower() in str(rep.get("Specialty", "")).lower() for keyword in cat.split("&")):
                     candidate = rep
                     break
             if candidate:
                 break
                 
-        if not candidate:
+        if not candidate and self.sales_team:
             candidate = min(self.sales_team, key=lambda x: x.get("ActiveDeals", 99))
             
-        return candidate
+        return candidate or {"FullName": "NVKD Trực ban", "StaffID": "NV-DIRECT", "Specialty": "Đa ngành", "ActiveDeals": 0}
 
     def evaluate_pricing_and_inventory(self, parsed_request: Dict[str, Any]) -> Dict[str, Any]:
         """Step 4 & 5: Assesses inventory, price list, leads times, SLA feasibility and calculates quotations."""
@@ -465,18 +467,19 @@ Website: https://minhan.vn | Hotline: 0912.345.000"""
         stock_warnings = []
         leadtime_warnings = []
         
-        discount_pct = parsed_request["requested_discount_pct"]
+        discount_pct = float(parsed_request.get("requested_discount_pct", 0) or 0)
         
-        for item in parsed_request["extracted_items"]:
-            prod = item["product"]
-            qty = item["quantity"]
-            sku = prod["SKU"]
-            name = prod["ProductName"]
-            unit_price = int(prod["UnitPrice"])
-            unit = prod["Unit"]
-            avail_stock = int(prod.get("AvailableStock", 0))
-            in_stock_lead = int(prod.get("LeadTimeInStockDays", 1))
-            out_stock_lead = int(prod.get("LeadTimeOutOfStockDays", 14))
+        for item in parsed_request.get("extracted_items", []):
+            prod = item.get("product") or {}
+            qty = int(item.get("quantity") or 1)
+            sku = prod.get("SKU", "SKU-UNKNOWN")
+            name = prod.get("ProductName", "Unknown Product")
+            unit_price = int(float(prod.get("UnitPrice", 0) or 0))
+            unit = prod.get("Unit", "Cái")
+            avail_stock = int(float(prod.get("AvailableStock", 0) or 0))
+            in_stock_lead = int(float(prod.get("LeadTimeInStockDays", 1) or 1))
+            out_stock_lead = int(float(prod.get("LeadTimeOutOfStockDays", 14) or 14))
+
             
             # Stock assessment
             is_service = (prod.get("Category") == "Dịch vụ" or avail_stock >= 999 or "SVC-" in str(sku).upper())
@@ -526,7 +529,7 @@ Website: https://minhan.vn | Hotline: 0912.345.000"""
             })
 
         # Lead time SLA Feasibility check
-        req_deadline = parsed_request["requested_deadline_days"]
+        req_deadline = parsed_request.get("requested_deadline_days")
         sla_violation = False
         if req_deadline is not None:
             if req_deadline < max_lead_time_days:
@@ -538,7 +541,8 @@ Website: https://minhan.vn | Hotline: 0912.345.000"""
                 )
 
         # Budget comparison
-        budget = parsed_request["budget"]
+        budget = parsed_request.get("budget")
+
         budget_status = "Khách chưa cung cấp ngân sách"
         budget_diff = 0
         if budget:

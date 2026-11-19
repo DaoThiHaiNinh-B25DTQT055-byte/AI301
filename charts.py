@@ -251,22 +251,46 @@ def chart_mini_sparkline(values: List[float], color: str = "#6366F1", is_dark: b
 # 2. BIỂU ĐỒ TAB 1: XỬ LÝ YÊU CẦU CỦA KHÁCH HÀNG (SINGLE OPPORTUNITY)
 # ==============================================================================
 
+def _normalize_items_input(items: Any) -> Tuple[List[Dict[str, Any]], pd.DataFrame]:
+    """Safely normalizes items from DataFrame, Dict, or List into (list_of_dicts, dataframe)."""
+    if items is None:
+        return [], pd.DataFrame()
+    if isinstance(items, pd.DataFrame):
+        if items.empty:
+            return [], pd.DataFrame()
+        return items.to_dict(orient="records"), items.copy()
+    if isinstance(items, dict):
+        raw = items.get("items_detail") or items.get("matched_items") or items.get("extracted_items") or []
+        if isinstance(raw, pd.DataFrame):
+            if raw.empty:
+                return [], pd.DataFrame()
+            return raw.to_dict(orient="records"), raw.copy()
+        if not raw:
+            return [], pd.DataFrame()
+        return list(raw), pd.DataFrame(raw)
+    if isinstance(items, (list, tuple)):
+        if not items:
+            return [], pd.DataFrame()
+        return list(items), pd.DataFrame(items)
+    return [], pd.DataFrame()
+
+
 def chart_opportunity_item_values(
-    items: Union[List[Dict[str, Any]], Dict[str, Any]], 
+    items: Union[List[Dict[str, Any]], Dict[str, Any], pd.DataFrame], 
     is_dark: bool = False, 
     lang: str = "vi"
 ) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Horizontal bar chart showing the monetary value contribution of each item with side value callouts."""
-    raw_items = items.get("items_detail") or items.get("matched_items") or [] if isinstance(items, dict) else items
-    if not raw_items:
+    raw_items, df = _normalize_items_input(items)
+    if df.empty or not raw_items:
         return None, "", pd.DataFrame()
         
-    df = pd.DataFrame(raw_items)
     name_col = next((c for c in ["ProductName", "product_name", "SKU", "name"] if c in df.columns), None)
     val_col = next((c for c in ["FinalTotal", "total_price", "ListTotal", "TotalAmount", "UnitPrice"] if c in df.columns), None)
     
-    if not name_col or not val_col or df[val_col].sum() == 0:
+    if not name_col or not val_col or df[val_col].dropna().empty or pd.to_numeric(df[val_col], errors='coerce').fillna(0).sum() == 0:
         return None, "", df
+
         
     df_sorted = df.sort_values(by=val_col, ascending=True).copy()
     total_req_val = df_sorted[val_col].sum()
@@ -321,21 +345,21 @@ def chart_opportunity_item_values(
 
 
 def chart_opportunity_category_donut(
-    items: Union[List[Dict[str, Any]], Dict[str, Any]], 
+    items: Union[List[Dict[str, Any]], Dict[str, Any], pd.DataFrame], 
     is_dark: bool = False, 
     lang: str = "vi"
 ) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Donut chart showing revenue breakdown by product/service category for the current inquiry."""
-    raw_items = items.get("items_detail") or items.get("matched_items") or [] if isinstance(items, dict) else items
-    if not raw_items:
+    raw_items, df = _normalize_items_input(items)
+    if df.empty or not raw_items:
         return None, "", pd.DataFrame()
         
-    df = pd.DataFrame(raw_items)
     cat_col = next((c for c in ["Category", "category", "Nhóm", "ProductName", "SKU"] if c in df.columns), None)
     val_col = next((c for c in ["FinalTotal", "total_price", "ListTotal", "TotalAmount", "UnitPrice"] if c in df.columns), None)
     
-    if not cat_col or not val_col or df[val_col].sum() == 0:
+    if not cat_col or not val_col or df[val_col].dropna().empty or pd.to_numeric(df[val_col], errors='coerce').fillna(0).sum() == 0:
         return None, "", df
+
         
     agg = df.groupby(cat_col)[val_col].sum().reset_index().sort_values(by=val_col, ascending=False)
     total_val = agg[val_col].sum()
@@ -400,16 +424,17 @@ def chart_opportunity_category_donut(
 
 
 def chart_opportunity_inventory_comparison(
-    items: Union[List[Dict[str, Any]], Dict[str, Any]], 
+    items: Union[List[Dict[str, Any]], Dict[str, Any], pd.DataFrame], 
     is_dark: bool = False, 
     lang: str = "vi"
 ) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Grouped bar chart comparing requested quantity vs available warehouse stock with side legend."""
-    raw_items = items.get("items_detail") or items.get("matched_items") or [] if isinstance(items, dict) else items
+    raw_items, df_in = _normalize_items_input(items)
     if not raw_items:
         return None, "", pd.DataFrame()
         
     records = []
+
     has_shortage = False
     shortage_items = []
     
@@ -538,16 +563,17 @@ def chart_opportunity_inventory_comparison(
 
 
 def chart_leadtime_timeline(
-    items: Union[List[Dict[str, Any]], Dict[str, Any]], 
+    items: Union[List[Dict[str, Any]], Dict[str, Any], pd.DataFrame], 
     is_dark: bool = False, 
     lang: str = "vi"
 ) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Horizontal bar chart indicating estimated fulfillment lead time per item with side legend."""
-    raw_items = items.get("items_detail") or items.get("matched_items") or [] if isinstance(items, dict) else items
+    raw_items, df_in = _normalize_items_input(items)
     if not raw_items:
         return None, "", pd.DataFrame()
         
     rows = []
+
     max_days = 0
     longest_item = ""
     for it in raw_items:
@@ -621,7 +647,7 @@ def chart_leadtime_timeline(
 
 
 def chart_governance_gauges(
-    eval_data: Dict[str, Any], 
+    eval_data: Any, 
     is_dark: bool = False, 
     lang: str = "vi"
 ) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
@@ -632,8 +658,9 @@ def chart_governance_gauges(
     - Colored arc steps: green for self-approval range, amber/red for escalation range
     - Status-reactive needle/bar color
     """
-    if not eval_data:
+    if not isinstance(eval_data, dict) or not eval_data:
         return None, "", pd.DataFrame()
+
         
     max_rep_disc = float(getattr(config, "MAX_REP_DISCOUNT_PCT", 5.0))
     max_mgr_disc = float(getattr(config, "MAX_MANAGER_DISCOUNT_PCT", 10.0))
