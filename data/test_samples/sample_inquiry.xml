@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Orders>
+    <Order>
+        <CustomerID>MB-001</CustomerID>
+        <CustomerName>Ngân hàng Quân Đội MB</CustomerName>
+        <ProductName>Cisco C9200L-24P-4G-E</ProductName>
+        <Quantity>8</Quantity>
+        <UnitPrice>38500000</UnitPrice>
+        <DiscountPct>5.0</DiscountPct>
+        <TotalAmount>292600000</TotalAmount>
+        <Date>2026-11-03</Date>
+    </Order>
+    <Order>
+        <CustomerID>TCB-002</CustomerID>
+        <CustomerName>Tập đoàn Vingroup</CustomerName>
+        <ProductName>FortiGate-60F</ProductName>
+        <Quantity>15</Quantity>
+        <UnitPrice>16800000</UnitPrice>
+        <DiscountPct>7.0</DiscountPct>
+        <TotalAmount>234360000</TotalAmount>
+        <Date>2026-11-07</Date>
+    </Order>
+</Orders>

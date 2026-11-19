@@ -1,0 +1,46 @@
+[
+  {
+    "id": "REQ-001",
+    "title": "Mẫu 1: Yêu cầu chuẩn - Đầy đủ thông tin, trong thẩm quyền NVKD",
+    "type": "Standard",
+    "customer_name": "Công ty Cổ phần Công nghệ DigiTech",
+    "contact_person": "Anh Trần Minh Tuấn (Trưởng phòng IT)",
+    "email": "tuan.tm@digitech.vn",
+    "phone": "0988.123.456",
+    "raw_text": "Kính gửi Bộ phận Kinh doanh Công ty Minh An,\n\nCông ty chúng tôi (DigiTech JSC) đang cần mở rộng văn phòng và cần báo giá gấp các hạng mục thiết bị sau:\n1. 05 chiếc Laptop Lenovo ThinkPad T14 Gen 4 cho nhân viên lập trình.\n2. 05 chiếc Màn hình Dell UltraSharp U2724D 27 Inch.\n3. 01 bộ Switch Cisco Catalyst C9200L-24P-4G-E.\n4. Gói dịch vụ khảo sát và cấu hình mạng LAN / VLAN văn phòng.\n\nNgân sách dự kiến của chúng tôi cho đợt này là khoảng 220.000.000 VNĐ.\nThời hạn triển khai mong muốn: Trong vòng 7 ngày làm việc kể từ ngày ký hợp đồng.\nChúng tôi đề nghị mức chiết khấu 4% cho đơn hàng này vì là khách hàng thân thiết.\n\nNhờ Minh An gửi sớm báo giá chi tiết và dự thảo hợp đồng.\nTrân trọng,\nTrần Minh Tuấn - Trưởng phòng IT DigiTech\nSĐT: 0988.123.456",
+    "expected_flow": "Đầy đủ thông tin -> Trong thẩm quyền NVKD -> Đề xuất báo giá"
+  },
+  {
+    "id": "REQ-002",
+    "title": "Mẫu 2: Thiếu thông tin nghiêm trọng (Thiếu số lượng & Ngân sách) -> Cần hỏi lại KH",
+    "type": "Missing_Info",
+    "customer_name": "Công ty TNHH May Mặc Hưng Phát",
+    "contact_person": "Chị Lê Thu Hằng (Phòng Mua hàng)",
+    "email": "hang.lt@hungphattextile.com",
+    "phone": "0903.555.789",
+    "raw_text": "Chào Minh An,\n\nBên mình cần mua một số máy chủ Dell PowerEdge R750 và một vài bộ máy tính cho phòng kế toán dùng phần mềm MISA. Ngoài ra cần gói cài đặt máy chủ luôn.\nGiao hàng tại kho Hưng Yên trước ngày 25 tháng này nhé.\nCho mình xin báo giá và chiết khấu tốt nhất nhé!\n\nCảm ơn,\nHằng - May Mặc Hưng Phát",
+    "expected_flow": "Thiếu thông tin -> Nhánh 'Yêu cầu KH làm rõ/bổ sung' -> Tự động soạn email hỏi lại"
+  },
+  {
+    "id": "REQ-003",
+    "title": "Mẫu 3: Chiết khấu vượt quyền (12%) & Giao hàng gấp (2 ngày) -> Trưởng phòng duyệt",
+    "type": "Exceed_Authority",
+    "customer_name": "Tập đoàn Xây dựng Nam Long",
+    "contact_person": "Ông Nguyễn Hoàng Quân (Giám đốc Dự án)",
+    "email": "quan.nh@namlonggroup.vn",
+    "phone": "0918.777.888",
+    "raw_text": "Gửi Công ty Minh An,\n\nChúng tôi đang triển khai dự án Site Office tại Quận 7 và cần trang bị ngay thiết bị mạng:\n1. 02 chiếc Switch Aruba Instant On 1930 48G.\n2. 06 bộ WiFi Aruba Instant On AP22.\n3. 02 bộ Lưu điện APC Smart-UPS 2200VA.\n4. Gói cấu hình hệ thống mạng LAN / VPN.\n\nThời hạn hoàn thành: Cần bàn giao và lắp đặt trong vòng 2 ngày làm việc (yêu cầu tiến độ cực kỳ khẩn cấp).\nĐề xuất mức chiết khấu thương mại: 10% trên tổng giá niêm yết.\nNgân sách đã được phê duyệt tối đa: 110.000.000 VNĐ.\n\nNếu Minh An cam kết được thời gian giao hàng trong 2 ngày và đồng ý mức chiết khấu trên, chúng tôi sẽ tiến hành ký ngay trong ngày mai.\nTrân trọng,\nNguyễn Hoàng Quân - Nam Long Group",
+    "expected_flow": "Đủ thông tin -> Vượt thẩm quyền (Chiết khấu 10% & Giao khẩn cấp) -> Trình Trưởng phòng duyệt"
+  },
+  {
+    "id": "REQ-004",
+    "title": "Mẫu 4: Yêu cầu số lượng vượt Tồn khả dụng -> Cảnh báo Lead time & Vận hành",
+    "type": "Out_Of_Stock_Warning",
+    "customer_name": "Trường Quốc tế Song ngữ Wellspring",
+    "contact_person": "Thầy Đỗ Quang Minh (Phụ trách Hạ tầng)",
+    "email": "minh.dq@wellspring-edu.vn",
+    "phone": "0977.889.900",
+    "raw_text": "Kính gửi Minh An,\n\nNhà trường cần chuẩn bị phòng thực hành tin học mới cho năm học tới với danh mục:\n1. 08 chiếc Máy chủ Dell PowerEdge R750 (cần cài đặt Hyper-V).\n2. 08 Gói Dịch vụ Triển khai Máy chủ.\n3. 10 chiếc Màn hình đồ họa Dell UltraSharp U2724D.\n\nThời gian nhà trường yêu cầu hoàn thành nghiệm thu: trong 5 ngày tới.\nNgân sách dự kiến: 800.000.000 VNĐ.\nĐề nghị mức chiết khấu: 6%.\n\nMong nhận được phản hồi sớm từ quý công ty.\nĐỗ Quang Minh - Ban CNTT Trường Wellspring",
+    "expected_flow": "Đủ thông tin -> Cảnh báo Tồn kho chỉ có 4 máy (thiếu 4 máy), Lead-time nhập mới 14 ngày (vi phạm 5 ngày) -> Cần phối hợp Vận hành & Trưởng phòng duyệt"
+  }
+]

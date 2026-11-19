@@ -1,0 +1,7 @@
+﻿StaffID,FullName,Role,Specialty,Email,Phone,ActiveDeals
+NV01,Nguyễn Văn An,Nhân viên Kinh doanh,"Máy chủ, Lưu trữ & Hạ tầng CNTT",an.nguyen@minhan.vn,0912.345.001,12
+NV02,Trần Thị Bích,Nhân viên Kinh doanh,"Phần mềm, Bản quyền & Cloud",bich.tran@minhan.vn,0912.345.002,9
+NV03,Lê Hoàng Cường,Nhân viên Kinh doanh,Thiết bị mạng & Bảo mật,cuong.le@minhan.vn,0912.345.003,15
+NV04,Phạm Thu Dung,Nhân viên Kinh doanh,"Laptop, Máy tính để bàn & Màn hình",dung.pham@minhan.vn,0912.345.004,8
+NV05,Vũ Đức Giang,Nhân viên Kinh doanh,Dịch vụ Triển khai & Tích hợp hệ thống,giang.vu@minhan.vn,0912.345.005,11
+NV06,Hoàng Mai Hương,Nhân viên Kinh doanh,Khách hàng Doanh nghiệp Tổng hợp (SMB),huong.hoang@minhan.vn,0912.345.006,7

@@ -1,0 +1,4 @@
+﻿ApprovalLevel,MaxDiscountPercent,MaxOrderValueVND,LeadTimePolicy,DecisionType,Note
+Cấp 1 - Nhân viên Kinh doanh (NVKD),5.0,100000000,Tuân thủ SLA tiêu chuẩn của kho/vận hành,Tự động phê duyệt,NVKD được chủ động báo giá và chiết khấu tối đa 5% với các đơn hàng dưới 100 triệu.
+Cấp 2 - Trưởng phòng Kinh doanh,12.0,500000000,Chấp nhận phê duyệt rút ngắn SLA sau khi xác nhận với Vận hành,Cần Trưởng phòng duyệt,"Áp dụng khi chiết khấu từ trên 5% đến 12%, đơn hàng từ 100tr - 500tr, hoặc cam kết giao gấp ngoài SLA."
+Cấp 3 - Ban Giám đốc,25.0,9999999999,Dự án chiến lược đặc thù,Cần Ban Giám đốc duyệt,Áp dụng cho các dự án lớn trên 500 triệu hoặc chiết khấu trên 12%.

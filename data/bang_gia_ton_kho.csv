@@ -1,0 +1,14 @@
+﻿SKU,ProductName,Category,UnitPrice,Unit,WarrantyMonths,AvailableStock,LeadTimeInStockDays,LeadTimeOutOfStockDays,Description
+SRV-DELL-R750,"Máy chủ Dell PowerEdge R750 (Intel Xeon Silver 4314, 32GB RAM, 2x 480GB SSD, 2x 2TB HDD, H755)",Máy chủ & Lưu trữ,92500000,Bộ,36,4,2,14,"Máy chủ 2U dành cho doanh nghiệp vừa và lớn, tải cơ sở dữ liệu và ảo hóa."
+SRV-HPE-DL380,"Máy chủ HPE ProLiant DL380 Gen10 (Xeon 4210R, 32GB RAM, P408i-a, 8SFF, 800W)",Máy chủ & Lưu trữ,86000000,Bộ,36,2,2,15,Máy chủ đa năng hiệu năng cao cho hệ thống ERP và kế toán.
+SW-CISCO-C9200L-24P,"Thiết bị chuyển mạch Cisco Catalyst C9200L-24P-4G-E (24 Port PoE+, 4x 1G SFP)",Thiết bị mạng,38500000,Chiếc,24,8,1,21,"Switch quản lý Layer 3 doanh nghiệp, cấp nguồn PoE+ cho camera và Access Point."
+SW-ARUBA-1930-48G,Switch Aruba Instant On 1930 48G 4SFP/SFP+ (JL685A),Thiết bị mạng,19800000,Chiếc,24,15,1,10,"Switch 48 cổng Gigabit, 4 cổng quang 10G, quản lý đám mây hoặc web cục bộ."
+AP-ARUBA-AP22,"Bộ phát WiFi Aruba Instant On AP22 (Wi-Fi 6, 2x2 MU-MIMO)",Thiết bị mạng,3600000,Chiếc,24,25,1,7,Access Point chuẩn Wifi 6 chịu tải đến 75 thiết bị đồng thời cho văn phòng.
+NB-DELL-LAT5540,"Laptop Dell Latitude 5540 (Core i7-1365U, 16GB RAM, 512GB SSD, 15.6 Inch FHD, Win 11 Pro)",Máy tính & Thiết bị đầu cuối,26500000,Chiếc,24,12,1,10,"Laptop doanh nhân bảo mật cao cấp, độ bền chuẩn quân đội."
+NB-LENOVO-T14G4,"Laptop Lenovo ThinkPad T14 Gen 4 (Core i5-1335U, 16GB RAM, 512GB SSD, 14 Inch WUXGA)",Máy tính & Thiết bị đầu cuối,23900000,Chiếc,36,10,1,12,"Bàn phím ThinkPad trứ danh, bền bỉ cho nhân viên văn phòng và quản lý."
+MON-DELL-U2724D,"Màn hình đồ họa Dell UltraSharp U2724D (27 Inch, 2K QHD, 120Hz, IPS Black, Type-C)",Màn hình & Phụ kiện,9900000,Chiếc,36,18,1,7,Màn hình cao cấp chuẩn màu 98% DCI-P3 cho thiết kế đồ họa và lập trình.
+UPS-APC-SMT2200,Bộ lưu điện APC Smart-UPS 2200VA LCD 230V (SMT2200I),Thiết bị nguồn & Phụ trợ,24500000,Chiếc,24,3,2,14,Bộ lưu điện chuẩn Sine wave cho tủ Rack máy chủ và phòng Server.
+SVC-INSTALL-SRV,"Dịch vụ Triển khai & Cấu hình Máy chủ, Hệ điều hành Windows Server / Linux, Hyper-V",Dịch vụ công nghệ,8000000,Gói,12,999,1,2,"Bao gồm lắp đặt phần cứng, cấu hình RAID, OS, Active Directory và phân quyền."
+SVC-NETWORK-SETUP,"Dịch vụ Khảo sát, Lắp đặt và Cấu hình Mạng LAN / VLAN / VPN Doanh nghiệp",Dịch vụ công nghệ,6500000,Gói,12,999,1,2,"Cấu hình chia VLAN phòng ban, định tuyến, firewall bảo mật và VPN kết nối từ xa."
+LIC-M365-BUS-STD,Bản quyền Microsoft 365 Business Standard (Thuê bao 1 năm / User),Phần mềm & Bản quyền,3450000,User/Năm,12,999,1,1,"Ứng dụng Office cài đặt trên 5 thiết bị, Exchange Online 50GB, Teams, OneDrive 1TB."
+LIC-WIN-SRV-2022,Bản quyền Windows Server 2022 Standard 16 Core (Vĩnh viễn),Phần mềm & Bản quyền,21500000,License,12,999,1,1,Bản quyền hợp lệ cho máy chủ vật lý hỗ trợ tối đa 2 máy ảo ảo hóa.

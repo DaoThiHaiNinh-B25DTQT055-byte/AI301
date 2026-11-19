@@ -1,0 +1,10 @@
+PHIẾU YÊU CẦU BÁO GIÁ THIẾT BỊ IT (RFQ-2026-992)
+Khách hàng: Công ty Cổ phần Giao Hàng Nhanh (GHN)
+Người liên hệ: Trần Tuấn Linh (linh.tt@ghn.vn) - 0912345678
+Địa chỉ giao hàng: Tổng kho Tân Bình, TP. Hồ Chí Minh
+
+Nội dung yêu cầu:
+Cần cấp gấp 8 con Firewall FortiGate-60F để triển khai bảo mật các bưu cục vệ tinh.
+Yêu cầu hàng mới 100%, chính hãng, bảo hành 36 tháng.
+Mong muốn chiết khấu 6% do mua số lượng lớn.
+Thanh toán: Tạm ứng 30%, 70% sau khi nghiệm thu giao nhận.

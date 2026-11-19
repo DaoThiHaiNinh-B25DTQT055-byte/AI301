@@ -1,0 +1,32 @@
+[
+  {
+    "customer": "Techcombank Data Center",
+    "product": "Cisco C9300-24T-A",
+    "quantity": 4,
+    "unit_price": 89000000,
+    "discount_pct": 4.0,
+    "revenue": 341760000,
+    "profit": 68352000,
+    "date": "2026-11-02"
+  },
+  {
+    "customer": "Momo Payment Gateway",
+    "product": "FortiGate-100F",
+    "quantity": 6,
+    "unit_price": 48000000,
+    "discount_pct": 5.5,
+    "revenue": 272160000,
+    "profit": 48988800,
+    "date": "2026-11-06"
+  },
+  {
+    "customer": "VNG Games Studio",
+    "product": "Aruba AP-505",
+    "quantity": 40,
+    "unit_price": 8900000,
+    "discount_pct": 6.0,
+    "revenue": 334640000,
+    "profit": 66928000,
+    "date": "2026-11-14"
+  }
+]
