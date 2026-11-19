@@ -1073,12 +1073,14 @@ def chart_pipeline_funnel(batch_df: pd.DataFrame, is_dark: bool = False, lang: s
     fig = go.Figure(go.Funnel(
         y=stages,
         x=values,
-        textinfo="value+percent previous",
+        texttemplate="<b>%{value:,.0f} Hồ sơ</b><br>(%{percentInitial:.1f}% toàn phễu)",
+        textposition="inside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color="#FFFFFF"),
         marker=dict(
-            color=[PALETTE["indigo"], PALETTE["blue"], PALETTE["cyan"], PALETTE["amber"], PALETTE["emerald"]],
-            line=dict(color="rgba(255,255,255,0.2)" if is_dark else "rgba(0,0,0,0.12)", width=1.5)
+            color=["#4F46E5", "#3B82F6", "#06B6D4", "#10B981", "#059669"],
+            line=dict(color="rgba(255,255,255,0.4)" if is_dark else "rgba(255,255,255,0.85)", width=2)
         ),
-        connector={"line": {"color": "rgba(255,255,255,0.25)" if is_dark else "rgba(0,0,0,0.15)", "width": 1.5}}
+        connector={"line": {"color": "rgba(99, 102, 241, 0.35)", "width": 2, "dash": "solid"}}
     ))
     
     title = "Phễu chuyển đổi: Yêu cầu ban đầu ➔ Hồ sơ cơ hội ➔ Bản nháp phản hồi" if lang == "vi" else "B2B Conversion Funnel: Inquiry ➔ Opportunity ➔ Proposal"
@@ -1147,13 +1149,16 @@ def chart_operational_risk_bottlenecks(
         "Trạng_Thái_Kiểm_Soát": notes
     })
 
+    tokens = get_chart_theme_tokens(is_dark)
+
     fig = go.Figure(go.Bar(
         y=labels,
         x=[max(c, 2) if i < 2 else c for i, c in enumerate(counts)],
         orientation="h",
         text=notes,
         textposition="outside",
-        marker=dict(color=colors, line=dict(width=0))
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color=tokens["text_color"]),
+        marker=dict(color=colors, cornerradius=8, line=dict(width=0))
     ))
     
     title = "Ma trận Kiểm soát 4 Rủi ro Vận hành Cốt lõi (Minh An)" if lang == "vi" else "Operational Risk & Bottleneck Control Matrix"
@@ -1232,14 +1237,20 @@ def chart_sales_team_performance(
         x=self_approved,
         name="Tự quyết trong thẩm quyền" if lang == "vi" else "Self-Approved (<=5% & <=100M)",
         orientation="h",
-        marker=dict(color="#10B981")
+        text=[f" {v} ca" for v in self_approved],
+        textposition="inside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color="#FFFFFF"),
+        marker=dict(color="#10B981", cornerradius=6)
     ))
     fig.add_trace(go.Bar(
         y=reps,
         x=escalated,
         name="Chuyển Trưởng phòng duyệt" if lang == "vi" else "Escalated to Manager (>5% or >100M)",
         orientation="h",
-        marker=dict(color="#6366F1")
+        text=[f" {v} ca" if v > 0 else "" for v in escalated],
+        textposition="inside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color="#FFFFFF"),
+        marker=dict(color="#6366F1", cornerradius=6)
     ))
     
     title = "Khối lượng xử lý & Phân quyền duyệt theo 6 NVKD (Mục tiêu ~180 req/tuần)" if lang == "vi" else "6 Sales Reps Workload Allocation & Approval Authority"
@@ -1326,17 +1337,90 @@ def chart_batch_order_value_distribution(batch_df: pd.DataFrame, is_dark: bool =
 # 4. BIỂU ĐỒ TAB 4: BẢNG GIÁ & KHO KHẢ DỤNG (CATALOG & STOCK)
 # ==============================================================================
 
-def chart_catalog_top_stock(catalog_df: pd.DataFrame, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
-    """Horizontal bar chart of top 10 SKUs with highest warehouse inventory with side labels."""
-    if catalog_df.empty or "AvailableStock" not in catalog_df.columns:
+def _ensure_valid_catalog(catalog_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """
+    Guarantees a clean, fully populated catalog DataFrame.
+    If catalog_df is None, empty, or lacks required inventory columns,
+    intelligently maps columns or falls back to Minh An Company's official default catalog.
+    """
+    def _load_fallback():
+        try:
+            from agent_core import DataLoader
+            p_df, _, _ = DataLoader.load_default_data()
+            if p_df is not None and not p_df.empty:
+                return p_df.copy()
+        except Exception:
+            pass
+        try:
+            import os
+            p_csv = os.path.join(os.path.dirname(__file__), "data", "bang_gia_ton_kho.csv")
+            if os.path.exists(p_csv):
+                return pd.read_csv(p_csv, encoding="utf-8-sig")
+        except Exception:
+            pass
+        return pd.DataFrame()
+
+    if catalog_df is None or not isinstance(catalog_df, pd.DataFrame) or catalog_df.empty:
+        return _load_fallback()
+
+    work_df = catalog_df.copy()
+    col_mapping = {}
+    for c in work_df.columns:
+        c_norm = re.sub(r'[^\w]', '', str(c)).lower()
+        if c_norm in ["sku", "masku", "masanpham", "itemcode", "mahang"]:
+            col_mapping[c] = "SKU"
+        elif c_norm in ["productname", "tensanpham", "mathang", "sanpham", "tenhang", "product"]:
+            col_mapping[c] = "ProductName"
+        elif c_norm in ["category", "danhmuc", "nhom", "loai", "phanloai", "nhomhang", "nhomsanpham"]:
+            col_mapping[c] = "Category"
+        elif c_norm in ["unitprice", "dongia", "giaban", "gianiemyet", "price", "gia", "dongiavnd"]:
+            col_mapping[c] = "UnitPrice"
+        elif c_norm in ["availablestock", "tonkho", "soluongton", "stock", "tonkhadung", "soluong", "quantity", "qty", "sl"]:
+            col_mapping[c] = "AvailableStock"
+
+    if col_mapping:
+        work_df = work_df.rename(columns=col_mapping)
+
+    has_stock = "AvailableStock" in work_df.columns
+    has_price = "UnitPrice" in work_df.columns
+    
+    if not has_stock or not has_price or len(work_df) < 2:
+        return _load_fallback()
+
+    if "SKU" not in work_df.columns:
+        if "ProductName" in work_df.columns:
+            work_df["SKU"] = work_df["ProductName"]
+        else:
+            str_cols = work_df.select_dtypes(exclude=[np.number]).columns.tolist()
+            work_df["SKU"] = work_df[str_cols[0]] if str_cols else [f"SKU-{i+1}" for i in range(len(work_df))]
+
+    if "Category" not in work_df.columns:
+        work_df["Category"] = "Thiết bị CNTT"
+
+    work_df["AvailableStock"] = pd.to_numeric(
+        work_df["AvailableStock"].astype(str).str.replace(r'[^\d.]', '', regex=True), 
+        errors='coerce'
+    ).fillna(0)
+    work_df["UnitPrice"] = pd.to_numeric(
+        work_df["UnitPrice"].astype(str).str.replace(r'[^\d.]', '', regex=True), 
+        errors='coerce'
+    ).fillna(0)
+
+    return work_df
+
+
+def chart_catalog_top_stock(catalog_df: Optional[pd.DataFrame] = None, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+    """Horizontal bar chart of top 10 SKUs with highest warehouse inventory with rounded corners and modern SaaS 2026 styling."""
+    df_work = _ensure_valid_catalog(catalog_df)
+    if df_work.empty:
         return None, "", pd.DataFrame()
         
-    df_work = catalog_df.copy()
-    df_work["AvailableStock"] = pd.to_numeric(df_work["AvailableStock"].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce').fillna(0)
     sku_col = "SKU" if "SKU" in df_work.columns else df_work.columns[0]
     top_df = df_work.sort_values(by="AvailableStock", ascending=True).tail(10).copy()
-    top_df["display_text"] = top_df["AvailableStock"].apply(lambda v: f" {int(v)} chiếc")
+    top_df["display_text"] = top_df["AvailableStock"].apply(lambda v: f" {int(v):,} chiếc")
     
+    tokens = get_chart_theme_tokens(is_dark)
+
     fig = px.bar(
         top_df,
         x="AvailableStock",
@@ -1344,40 +1428,46 @@ def chart_catalog_top_stock(catalog_df: pd.DataFrame, is_dark: bool = False, lan
         orientation="h",
         text="display_text",
         color="AvailableStock",
-        color_continuous_scale=[[0, "#6366F1"], [0.5, "#06B6D4"], [1, "#10B981"]]
+        color_continuous_scale=[[0, "#818CF8"], [0.5, "#06B6D4"], [1, "#10B981"]]
     )
-    fig.update_traces(textposition="outside")
-    title = "Top 10 thiết bị có tồn kho khả dụng cao nhất" if lang == "vi" else "Top 10 available inventory SKUs"
+    fig.update_traces(
+        textposition="outside",
+        texttemplate="<b>%{text}</b>",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color=tokens["text_color"]),
+        marker=dict(cornerradius=8, line=dict(width=0)),
+        hovertemplate="<b>%{y}</b><br>Tồn kho khả dụng: <b>%{x:,.0f} chiếc</b><extra></extra>"
+    )
+    title = "Top 10 Thiết Bị Có Tồn Kho Khả Dụng Cao Nhất (Kho Minh An)" if lang == "vi" else "Top 10 Available Inventory SKUs (Minh An Warehouse)"
     style_figure(fig, theme=is_dark, lang=lang, title=title, height=410, side_legend=False)
-    fig.update_layout(coloraxis_showscale=False, margin=dict(l=40, r=90, t=48, b=35))
-    fig.update_xaxes(title="Số lượng tồn kho (Chiếc/Bộ)" if lang == "vi" else "Units in Stock", showgrid=True)
+    fig.update_layout(coloraxis_showscale=False, margin=dict(l=150, r=100, t=48, b=35))
+    fig.update_xaxes(title="Số lượng tồn kho khả dụng (Chiếc/Bộ)" if lang == "vi" else "Units in Stock", showgrid=True)
     fig.update_yaxes(title="")
     
-    total_stock = catalog_df["AvailableStock"].sum()
+    total_stock = df_work["AvailableStock"].sum()
     top_sku = top_df.iloc[-1]
     top_share = (top_sku['AvailableStock'] / total_stock * 100) if total_stock > 0 else 0
     second_sku = top_df.iloc[-2] if len(top_df) > 1 else None
     diff_share = (top_sku['AvailableStock'] - second_sku['AvailableStock']) if second_sku is not None else 0
     
     insight = (
-        f"**{top_sku[sku_col]}** có lượng tồn lớn nhất với **{int(top_sku['AvailableStock'])} đơn vị** (chiếm **{top_share:.1f}%** tổng kho), nhiều hơn vị trí thứ hai **{int(diff_share)} chiếc**."
+        f"Mã **{top_sku[sku_col]}** có lượng tồn lớn nhất với **{int(top_sku['AvailableStock']):,} đơn vị** (chiếm **{top_share:.1f}%** tổng kho khả dụng), nhiều hơn vị trí thứ hai **{int(diff_share)} chiếc**. Đảm bảo đáp ứng ngay các đơn hàng triển khai gấp mà không cần chờ nhập khẩu."
         if second_sku is not None and lang == "vi" else
-        f"**{top_sku[sku_col]}** holds peak inventory at {int(top_sku['AvailableStock'])} units."
+        f"**{top_sku[sku_col]}** holds peak inventory at {int(top_sku['AvailableStock']):,} units."
     )
     return fig, insight, top_df[[sku_col, "AvailableStock"]]
 
 
-def chart_catalog_price_vs_stock_scatter(catalog_df: pd.DataFrame, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+def chart_catalog_price_vs_stock_scatter(catalog_df: Optional[pd.DataFrame] = None, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Scatter bubble chart: Unit Price vs Stock, bubble size = Total Capital Tied Up, with side legend."""
-    if catalog_df.empty or "UnitPrice" not in catalog_df.columns or "AvailableStock" not in catalog_df.columns:
+    df = _ensure_valid_catalog(catalog_df)
+    if df.empty:
         return None, "", pd.DataFrame()
         
-    df = catalog_df.copy()
-    df["UnitPrice"] = pd.to_numeric(df["UnitPrice"].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce').fillna(0)
-    df["AvailableStock"] = pd.to_numeric(df["AvailableStock"].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce').fillna(0)
+    df = df.copy()
     df["StockValue"] = df["UnitPrice"] * df["AvailableStock"]
     sku_col = "SKU" if "SKU" in df.columns else df.columns[0]
     cat_col = "Category" if "Category" in df.columns else None
+    df["StockValueText"] = df["StockValue"].apply(format_vnd)
     
     fig = px.scatter(
         df,
@@ -1386,10 +1476,18 @@ def chart_catalog_price_vs_stock_scatter(catalog_df: pd.DataFrame, is_dark: bool
         size="StockValue",
         color=cat_col,
         hover_name=sku_col,
-        size_max=38,
+        custom_data=["StockValueText"],
+        size_max=40,
         color_discrete_sequence=COLOR_SEQUENCE
     )
-    title = "Tương quan đơn giá niêm yết vs số lượng tồn kho" if lang == "vi" else "Price vs available stock matrix"
+    fig.update_traces(
+        marker=dict(
+            opacity=0.85,
+            line=dict(color="rgba(255,255,255,0.7)" if not is_dark else "rgba(255,255,255,0.25)", width=1.5)
+        ),
+        hovertemplate="<b>%{hovertext}</b><br>Đơn giá: %{x:,.0f} ₫<br>Tồn kho: %{y:,} chiếc<br>Vốn lưu động tồn: <b>%{customdata[0]}</b><extra></extra>"
+    )
+    title = "Ma Trận Đơn Giá Niêm Yết vs Tồn Kho Khả Dụng (Phân Bổ Vốn Lưu Động)" if lang == "vi" else "Price vs Available Stock Matrix (Working Capital)"
     style_figure(fig, theme=is_dark, lang=lang, title=title, height=410, side_legend=True)
     fig.update_layout(
         legend=dict(
@@ -1399,65 +1497,62 @@ def chart_catalog_price_vs_stock_scatter(catalog_df: pd.DataFrame, is_dark: bool
             xanchor="left",
             x=1.02
         ),
-        margin=dict(l=40, r=160, t=48, b=35)
+        margin=dict(l=50, r=160, t=48, b=35)
     )
     fig.update_xaxes(title="Đơn giá niêm yết (VNĐ)" if lang == "vi" else "Unit Price (VND)", tickformat=",.0f", showgrid=True)
-    fig.update_yaxes(title="Số lượng tồn khả dụng" if lang == "vi" else "Units in Stock", showgrid=True)
+    fig.update_yaxes(title="Số lượng tồn khả dụng (Chiếc)" if lang == "vi" else "Units in Stock", showgrid=True)
     
     total_val = df["StockValue"].sum()
     top_val_row = df.sort_values(by="StockValue", ascending=False).iloc[0]
     top_val_share = (top_val_row["StockValue"] / total_val * 100) if total_val > 0 else 0
     
     insight = (
-        f"Tổng vốn lưu động tồn kho ước đạt **{format_vnd(total_val)}**. SKU **{top_val_row[sku_col]}** chiếm tới **{top_val_share:.1f}%** tổng giá trị vốn lưu kho ({format_vnd(top_val_row['StockValue'])})."
+        f"Tổng vốn lưu động tồn kho toàn hệ thống đạt **{format_vnd(total_val)}**. "
+        f"Thiết bị **{top_val_row[sku_col]}** đang tập trung nhiều vốn nhất với **{format_vnd(top_val_row['StockValue'])}** (chiếm **{top_val_share:.1f}%** tổng vốn lưu kho)."
         if lang == "vi" else
         f"Total inventory capital is **{format_vnd(total_val)}**. **{top_val_row[sku_col]}** ties up **{top_val_share:.1f}%** of warehouse valuation."
     )
     return fig, insight, df[[sku_col, "UnitPrice", "AvailableStock", "StockValue"]]
 
 
-def chart_catalog_category_breakdown(catalog_df: pd.DataFrame, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+def chart_catalog_category_breakdown(catalog_df: Optional[pd.DataFrame] = None, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Donut chart showing stock composition by equipment category with side legend and center stats."""
-    if catalog_df.empty or "Category" not in catalog_df.columns:
+    df_work = _ensure_valid_catalog(catalog_df)
+    if df_work.empty:
         return None, "", pd.DataFrame()
-        
-    df_work = catalog_df.copy()
-    if "AvailableStock" in df_work.columns:
-        df_work["AvailableStock"] = pd.to_numeric(df_work["AvailableStock"].astype(str).str.replace(r'[^\d.]', '', regex=True), errors='coerce').fillna(0)
-    else:
-        df_work["AvailableStock"] = 1
         
     agg = df_work.groupby("Category")["AvailableStock"].sum().reset_index()
     agg = group_small_slices(agg, "Category", "AvailableStock", threshold=0.03)
-    agg["Share"] = round(agg["AvailableStock"] / agg["AvailableStock"].sum() * 100, 1)
+    tot_stock_val = agg["AvailableStock"].sum()
+    agg["Share"] = round(agg["AvailableStock"] / tot_stock_val * 100, 1) if tot_stock_val > 0 else 0
     agg_sorted = agg.sort_values(by="AvailableStock", ascending=False)
     
     tokens = get_chart_theme_tokens(is_dark)
     total_stock = agg_sorted["AvailableStock"].sum()
+    primary_col = "#818CF8" if is_dark else "#4F46E5"
     
     fig = px.pie(
         agg_sorted,
         names="Category",
         values="AvailableStock",
-        hole=0.62,
+        hole=0.68,
         color_discrete_sequence=COLOR_SEQUENCE
     )
     fig.update_traces(
         textinfo="percent",
         textposition="inside",
-        marker=dict(line=dict(color=tokens["slice_stroke"], width=2.5))
+        marker=dict(line=dict(color=tokens["slice_stroke"], width=2.5)),
+        hovertemplate="<b>%{label}</b><br>Tồn kho: %{value:,.0f} chiếc<br>Tỷ trọng: %{percent:.1%}<extra></extra>"
     )
-    title = "Cơ cấu tồn kho theo danh mục thiết bị" if lang == "vi" else "Inventory volume by category"
+    title = "Cơ Cấu Tồn Kho Theo Từng Danh Mục Thiết Bị CNTT" if lang == "vi" else "Inventory Volume by Equipment Category"
     style_figure(fig, theme=is_dark, lang=lang, title=title, height=420, side_legend=True)
     
-    # Chú thích ở tâm Donut và chú thích danh mục bên phải
     fig.update_layout(
         annotations=[
             dict(
-                text=f"<b>{int(total_stock):,}</b><br><span style='font-size:11px;color:{tokens['muted_color']}'>CHIẾC</span>",
+                text=f"<span style='font-size:11px;font-weight:700;letter-spacing:1px;color:{tokens['muted_color']};text-transform:uppercase;'>TỔNG TỒN KHO</span><br><span style='font-size:22px;font-weight:800;color:{primary_col};'>{int(total_stock):,}</span><br><span style='font-size:11px;color:{tokens['muted_color']};font-weight:600;'>CHIẾC</span>",
                 x=0.5, y=0.5,
-                font_size=20,
-                font_family="Be Vietnam Pro",
+                font_family="Be Vietnam Pro, sans-serif",
                 showarrow=False
             )
         ],
@@ -1485,35 +1580,69 @@ def chart_catalog_category_breakdown(catalog_df: pd.DataFrame, is_dark: bool = F
     return fig, insight, agg_sorted
 
 
-def chart_catalog_low_stock_alerts(catalog_df: pd.DataFrame, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+def chart_catalog_low_stock_alerts(catalog_df: Optional[pd.DataFrame] = None, is_dark: bool = False, lang: str = "vi") -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
     """Bar chart alerting low-stock items (<= 8 units) highlighted in vibrant warning red with side labels."""
-    if catalog_df.empty or "AvailableStock" not in catalog_df.columns:
+    df_work = _ensure_valid_catalog(catalog_df)
+    if df_work.empty:
         return None, "", pd.DataFrame()
         
-    sku_col = "SKU" if "SKU" in catalog_df.columns else catalog_df.columns[0]
-    low_df = catalog_df[catalog_df["AvailableStock"] <= 8].sort_values(by="AvailableStock", ascending=True).copy()
+    sku_col = "SKU" if "SKU" in df_work.columns else df_work.columns[0]
+    low_df = df_work[df_work["AvailableStock"] <= 8].sort_values(by="AvailableStock", ascending=True).copy()
     
     if low_df.empty:
-        low_df = catalog_df.sort_values(by="AvailableStock", ascending=True).head(5).copy()
+        low_df = df_work.sort_values(by="AvailableStock", ascending=True).head(5).copy()
         
     low_df["display_text"] = low_df["AvailableStock"].apply(lambda v: f" {int(v)} chiếc")
-    
+    tokens = get_chart_theme_tokens(is_dark)
+
     fig = px.bar(
         low_df,
         x=sku_col,
         y="AvailableStock",
         text="display_text",
-        color_discrete_sequence=[PALETTE["red"]]
+        color="AvailableStock",
+        color_continuous_scale=[[0, "#DC2626"], [0.5, "#EF4444"], [1, "#F87171"]]
     )
-    fig.update_traces(textposition="outside")
-    title = "Cảnh báo thiết bị sắp hết hàng (tồn <= 8 chiếc)" if lang == "vi" else "Low stock alerts (stock <= 8 units)"
+    fig.update_traces(
+        textposition="outside",
+        texttemplate="<b>%{text}</b>",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color=tokens["text_color"]),
+        marker=dict(cornerradius=8, line=dict(width=0)),
+        hovertemplate="<b>%{x}</b><br>Tồn kho còn lại: <b>%{y} chiếc</b><br>Trạng thái: 🚨 Nguy cấp<extra></extra>"
+    )
+    title = "Cảnh Báo Thiết Bị Sắp Hết Hàng (Tồn Kho <= 8 Chiếc Cần Tái Đặt Hàng)" if lang == "vi" else "Low Stock Alerts (Stock <= 8 Units)"
     style_figure(fig, theme=is_dark, lang=lang, title=title, height=400, side_legend=False)
+    fig.update_layout(coloraxis_showscale=False, margin=dict(l=45, r=40, t=50, b=45))
     fig.update_xaxes(title="")
-    fig.update_yaxes(title="Số lượng tồn" if lang == "vi" else "Units Remaining", range=[0, max(12, low_df["AvailableStock"].max() + 3)], showgrid=True)
+    fig.update_yaxes(
+        title="Số lượng tồn khả dụng (Chiếc)" if lang == "vi" else "Units Remaining", 
+        range=[0, max(12, low_df["AvailableStock"].max() + 4)], 
+        showgrid=True
+    )
+    
+    # Add horizontal safety threshold line at y=8
+    fig.add_shape(
+        type="line",
+        x0=-0.5,
+        x1=len(low_df) - 0.5,
+        y0=8,
+        y1=8,
+        line=dict(color="#F59E0B", width=2, dash="dash"),
+    )
+    fig.add_annotation(
+        x=len(low_df) - 1,
+        y=8.8,
+        text="<b>Ngưỡng an toàn SLA (8 chiếc)</b>",
+        showarrow=False,
+        font=dict(size=11, color="#D97706", family="Be Vietnam Pro, sans-serif"),
+        bgcolor="rgba(245, 158, 11, 0.12)",
+        borderpad=3
+    )
     
     critical_item = low_df.iloc[0]
     insight = (
-        f"Có **{len(low_df)} mã SKU** đang ở mức tồn báo động. Thiết bị nguy cấp nhất là **{critical_item[sku_col]}** chỉ còn **{int(critical_item['AvailableStock'])} chiếc**, cần phát hành PO nhập hàng ngay."
+        f"Có **{len(low_df)} mã thiết bị** đang ở mức tồn báo động dưới ngưỡng an toàn (<= 8 chiếc). "
+        f"Thiết bị nguy cấp nhất là **{critical_item[sku_col]}** chỉ còn **{int(critical_item['AvailableStock'])} chiếc**, cần phát hành lệnh PO nhập hàng gấp để tránh đứt gãy cam kết giao hàng."
         if lang == "vi" else
         f"**{len(low_df)} SKUs** are critically low on stock. **{critical_item[sku_col]}** has only {int(critical_item['AvailableStock'])} units left."
     )
@@ -1594,7 +1723,12 @@ def chart_dynamic_builder(
             agg = plot_df.groupby(x_col)[y_col].sum().reset_index().sort_values(by=y_col, ascending=False).head(15)
             agg["display_text"] = agg[y_col].apply(lambda v: f" {format_vnd(v)}")
             fig = px.bar(agg, x=x_col, y=y_col, color=x_col, color_discrete_sequence=COLOR_SEQUENCE, text="display_text")
-            fig.update_traces(textposition="outside")
+            fig.update_traces(
+                textposition="outside",
+                texttemplate="<b>%{text}</b>",
+                marker=dict(cornerradius=8, line=dict(width=0)),
+                hovertemplate="<b>%{x}</b><br>Giá trị: %{y:,.0f}<extra></extra>"
+            )
             top_row = agg.iloc[0]
             second_row = agg.iloc[1] if len(agg) > 1 else None
             total_y = agg[y_col].sum()
@@ -1606,7 +1740,12 @@ def chart_dynamic_builder(
             counts.columns = [x_col, "Số lượng"]
             counts["display_text"] = counts["Số lượng"].apply(lambda v: f" {v}")
             fig = px.bar(counts, x=x_col, y="Số lượng", text="display_text", color=x_col, color_discrete_sequence=COLOR_SEQUENCE)
-            fig.update_traces(textposition="outside")
+            fig.update_traces(
+                textposition="outside",
+                texttemplate="<b>%{text}</b>",
+                marker=dict(cornerradius=8, line=dict(width=0)),
+                hovertemplate="<b>%{x}</b><br>Số lượng: %{y:,.0f}<extra></extra>"
+            )
             top_c = counts.iloc[0]
             second_c = counts.iloc[1] if len(counts) > 1 else None
             insight = f"Nhóm xuất hiện nhiều nhất là **{top_c[x_col]}** ({top_c['Số lượng']} lượt), nhiều hơn vị trí thứ hai {top_c['Số lượng'] - (second_c['Số lượng'] if second_c is not None else 0)} lượt{sampled_note}."
@@ -1618,7 +1757,13 @@ def chart_dynamic_builder(
         if y_col and y_col in plot_df.columns:
             agg = plot_df.groupby(x_col)[y_col].sum().reset_index().sort_values(by=x_col)
             fig = px.line(agg, x=x_col, y=y_col, markers=True, color_discrete_sequence=[PALETTE["cyan"]])
-            fig.update_traces(line=dict(width=3, shape="spline"), marker=dict(size=8, color=PALETTE["indigo"]))
+            fig.update_traces(
+                line=dict(width=3.5, shape="spline"), 
+                marker=dict(size=8, color=PALETTE["indigo"]),
+                fill="tozeroy",
+                fillcolor="rgba(99, 102, 241, 0.08)",
+                hovertemplate="<b>%{x}</b><br>Giá trị: %{y:,.0f}<extra></extra>"
+            )
             max_pt = agg.sort_values(by=y_col, ascending=False).iloc[0]
             insight = f"Đỉnh tăng trưởng cao nhất của **{y_col}** ghi nhận tại mốc **{max_pt[x_col]}** với giá trị **{format_vnd(max_pt[y_col])}**{sampled_note}."
             style_figure(fig, theme=is_dark, lang=lang, title="", height=410, side_legend=False)
@@ -1630,29 +1775,29 @@ def chart_dynamic_builder(
             agg = plot_df.groupby(x_col)[val].sum().reset_index().sort_values(by=val, ascending=False)
             agg = group_small_slices(agg, x_col, val, threshold=0.03)
             total_val = agg[val].sum()
-            fig = px.pie(agg, names=x_col, values=val, hole=0.62, color_discrete_sequence=COLOR_SEQUENCE)
+            fig = px.pie(agg, names=x_col, values=val, hole=0.68, color_discrete_sequence=COLOR_SEQUENCE)
             center_label = format_vnd(total_val)
         else:
             agg = plot_df[x_col].value_counts().reset_index()
             agg.columns = [x_col, "Tần suất"]
             agg = group_small_slices(agg, x_col, "Tần suất", threshold=0.03)
             total_val = agg["Tần suất"].sum()
-            fig = px.pie(agg, names=x_col, values="Tần suất", hole=0.62, color_discrete_sequence=COLOR_SEQUENCE)
+            fig = px.pie(agg, names=x_col, values="Tần suất", hole=0.68, color_discrete_sequence=COLOR_SEQUENCE)
             center_label = f"{int(total_val):,}"
             
         fig.update_traces(
             textinfo="percent", 
             textposition="inside", 
-            marker=dict(line=dict(color=tokens["slice_stroke"], width=2.5))
+            marker=dict(line=dict(color=tokens["slice_stroke"], width=2.5)),
+            hovertemplate="<b>%{label}</b><br>Quy mô: %{value:,.0f}<br>Tỷ trọng: %{percent:.1%}<extra></extra>"
         )
         style_figure(fig, theme=is_dark, lang=lang, title="", height=420, side_legend=True)
         fig.update_layout(
             annotations=[
                 dict(
-                    text=f"<b>Tổng</b><br><span style='font-size:12px;color:{tokens['muted_color']}'>{center_label}</span>",
+                    text=f"<span style='font-size:11px;font-weight:700;color:{tokens['muted_color']};letter-spacing:1px;'>TỔNG</span><br><span style='font-size:19px;font-weight:800;color:{tokens['text_color']};'>{center_label}</span>",
                     x=0.5, y=0.5,
-                    font_size=18,
-                    font_family="Be Vietnam Pro",
+                    font_family="Be Vietnam Pro, sans-serif",
                     showarrow=False
                 )
             ],
@@ -1685,6 +1830,7 @@ def chart_dynamic_builder(
                 color=group_col if (group_col and group_col in plot_df.columns) else None, 
                 color_discrete_sequence=COLOR_SEQUENCE
             )
+            fig.update_traces(marker=dict(size=9, opacity=0.82))
             style_figure(fig, theme=is_dark, lang=lang, title="", height=410, side_legend=bool(group_col))
             insight = f"Tương quan phân tán giữa **{x_col}** và **{y_col}** phản ánh mức độ tập trung mật độ dữ liệu{sampled_note}."
 
@@ -1692,6 +1838,11 @@ def chart_dynamic_builder(
     elif chart_type in ["Hộp (Boxplot)", "Boxplot"]:
         val = y_col if (y_col and y_col in plot_df.columns) else x_col
         fig = px.box(plot_df, y=val, x=x_col if y_col else None, points="all", color_discrete_sequence=[PALETTE["rose"]])
+        fig.update_traces(
+            fillcolor="rgba(244, 63, 94, 0.14)", 
+            line=dict(color=PALETTE["rose"], width=2), 
+            marker=dict(size=7, opacity=0.85)
+        )
         s = pd.to_numeric(plot_df[val], errors='coerce').dropna()
         style_figure(fig, theme=is_dark, lang=lang, title="", height=410, side_legend=False)
         insight = f"Giá trị trung vị của **{val}** đạt **{format_vnd(s.median())}** (Min: {format_vnd(s.min())}, Max: {format_vnd(s.max())}){sampled_note}."
@@ -1706,6 +1857,285 @@ def chart_dynamic_builder(
             insight = f"Ma trận hệ số tương quan Pearson giữa **{len(num_cols)} trường số liệu** phát hiện các cặp chỉ số có tương quan đồng biến mạnh{sampled_note}."
             
     return fig, insight
+
+
+# ==============================================================================
+# 6.5. CÁC BIỂU ĐỒ CHUYÊN DỤNG CHO BÁO CÁO KINH DOANH ĐỘNG (DYNAMIC REPORT VIEW)
+# ==============================================================================
+
+def chart_report_kpi_comparison(
+    kpi_table: List[Dict[str, Any]], 
+    is_dark: bool = False, 
+    lang: str = "vi"
+) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+    """
+    Biểu đồ cột nhóm so sánh trực quan các chỉ số KPI giữa Kỳ gần nhất vs Kỳ liền trước (Phần 2 Báo cáo).
+    Áp dụng bo góc hiện đại cornerradius=8, màu sắc Indigo & Cyan độ tương phản cao, badge % tăng trưởng.
+    """
+    if not kpi_table:
+        return None, "", pd.DataFrame()
+        
+    def _parse_val(val_str):
+        if not val_str or val_str in ["—", "-", "N/A", "None"]:
+            return None
+        # Remove common currency and unit suffixes
+        cleaned = re.sub(r"[^\d,\.]", "", str(val_str)).strip()
+        if not cleaned:
+            return None
+        # Standardize decimal separator
+        if "," in cleaned and "." in cleaned:
+            if cleaned.rfind(".") > cleaned.rfind(","):
+                cleaned = cleaned.replace(",", "")
+            else:
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+        elif "," in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        try:
+            return float(cleaned)
+        except Exception:
+            return None
+
+    parsed_rows = []
+    for r in kpi_table:
+        m_name = r.get("metric", "")
+        c_raw = str(r.get("current", ""))
+        p_raw = str(r.get("previous", ""))
+        c_num = _parse_val(c_raw)
+        p_num = _parse_val(p_raw)
+        chg_str = str(r.get("change", "—"))
+        evid = str(r.get("evidence", ""))
+        
+        if c_num is not None:
+            parsed_rows.append({
+                "Chỉ số": m_name,
+                "Kỳ gần nhất (Số)": c_num,
+                "Kỳ trước (Số)": p_num if p_num is not None else 0.0,
+                "Hiển thị Kỳ này": c_raw,
+                "Hiển thị Kỳ trước": p_raw if p_num is not None else "—",
+                "Thay đổi %": chg_str,
+                "Dẫn chứng": evid
+            })
+            
+    if not parsed_rows:
+        return None, "", pd.DataFrame()
+
+    df_kpi = pd.DataFrame(parsed_rows)
+    tokens = get_chart_theme_tokens(is_dark)
+    
+    fig = go.Figure()
+    
+    # 1. Trace Kỳ gần nhất (Current Period) - Electric Indigo
+    fig.add_trace(go.Bar(
+        x=df_kpi["Chỉ số"],
+        y=df_kpi["Kỳ gần nhất (Số)"],
+        name="Kỳ gần nhất" if lang == "vi" else "Current Period",
+        marker=dict(
+            color="#6366F1",
+            cornerradius=8,
+            line=dict(color="rgba(255,255,255,0.25)" if is_dark else "rgba(0,0,0,0.06)", width=1.5)
+        ),
+        text=df_kpi["Hiển thị Kỳ này"],
+        textposition="outside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color=tokens["text_color"]),
+        hovertemplate="<b>%{x}</b><br>Kỳ gần nhất: %{text}<extra></extra>"
+    ))
+    
+    # 2. Trace Kỳ trước (Previous Period) - Vivid Electric Cyan / Slate
+    has_prev = any(r["Kỳ trước (Số)"] > 0 for _, r in df_kpi.iterrows())
+    if has_prev:
+        fig.add_trace(go.Bar(
+            x=df_kpi["Chỉ số"],
+            y=df_kpi["Kỳ trước (Số)"],
+            name="Kỳ liền trước" if lang == "vi" else "Previous Period",
+            marker=dict(
+                color="#06B6D4" if not is_dark else "#22D3EE",
+                cornerradius=8,
+                line=dict(color="rgba(255,255,255,0.25)" if is_dark else "rgba(0,0,0,0.06)", width=1.5)
+            ),
+            text=df_kpi["Hiển thị Kỳ trước"],
+            textposition="outside",
+            textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color=tokens["muted_color"]),
+            hovertemplate="<b>%{x}</b><br>Kỳ trước: %{text}<extra></extra>"
+        ))
+        
+    title = "So Sánh Trực Quan Dashboard KPI: Kỳ Gần Nhất vs Kỳ Liền Trước" if lang == "vi" else "Visual KPI Dashboard: Current vs Previous Period"
+    style_figure(fig, theme=is_dark, lang=lang, title=title, height=390, side_legend=True)
+    fig.update_layout(
+        barmode="group",
+        bargap=0.26,
+        bargroupgap=0.10,
+        margin=dict(l=45, r=160, t=55, b=45)
+    )
+    
+    insight = (
+        f"Trực quan hóa đối chiếu **{len(df_kpi)} chỉ số KPI** có số liệu định lượng giữa 2 kỳ. "
+        f"Hệ thống tự động loại trừ và ký hiệu '—' với các chỉ số không xuất hiện trong file nguồn nhằm bảo đảm tính toàn vẹn dữ liệu."
+        if lang == "vi" else
+        f"Visual comparison of {len(df_kpi)} measurable KPIs with rigorous integrity checks."
+    )
+    return fig, insight, df_kpi
+
+
+def chart_report_thematic_distribution(
+    thematic_data: List[Dict[str, Any]],
+    is_dark: bool = False,
+    lang: str = "vi"
+) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+    """
+    Biểu đồ trực quan hóa đối chiếu Mean vs Median và biên độ cực trị (Phần 3 Phân tích chuyên đề).
+    """
+    if not thematic_data:
+        return None, "", pd.DataFrame()
+        
+    df_th = pd.DataFrame(thematic_data)
+    if "column" not in df_th.columns or "mean" not in df_th.columns:
+        return None, "", pd.DataFrame()
+        
+    tokens = get_chart_theme_tokens(is_dark)
+    cols = df_th["column"].tolist()
+    means = df_th["mean"].tolist()
+    medians = df_th["median"].tolist()
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=cols,
+        y=means,
+        name="Giá trị Trung bình (Mean)" if lang == "vi" else "Mean",
+        marker=dict(
+            color="#6366F1",
+            cornerradius=8,
+            line=dict(color="rgba(255,255,255,0.2)" if is_dark else "rgba(0,0,0,0.06)", width=1)
+        ),
+        text=[f" {format_vnd(m)}" for m in means],
+        textposition="outside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color=tokens["text_color"])
+    ))
+    fig.add_trace(go.Bar(
+        x=cols,
+        y=medians,
+        name="Giá trị Trung vị (Median)" if lang == "vi" else "Median",
+        marker=dict(
+            color="#06B6D4" if not is_dark else "#22D3EE",
+            cornerradius=8,
+            line=dict(color="rgba(255,255,255,0.2)" if is_dark else "rgba(0,0,0,0.06)", width=1)
+        ),
+        text=[f" {format_vnd(md)}" for md in medians],
+        textposition="outside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12, color=tokens["muted_color"])
+    ))
+    
+    title = "Đối Chiếu Phân Phối: Giá Trị Trung Bình vs Trung Vị Theo Từng Chỉ Số" if lang == "vi" else "Distribution Comparison: Mean vs Median"
+    style_figure(fig, theme=is_dark, lang=lang, title=title, height=380, side_legend=True)
+    fig.update_layout(
+        barmode="group",
+        bargap=0.28,
+        bargroupgap=0.10,
+        margin=dict(l=45, r=160, t=55, b=45)
+    )
+    
+    insight = (
+        f"Đối chiếu Mean vs Median cho thấy mức độ tập trung và độ lệch (Skewness) của từng trường số liệu. "
+        f"Chỉ số có Mean chênh lệch lớn so với Median cảnh báo sự xuất hiện của các giao dịch ngoại lệ quy mô đột biến."
+        if lang == "vi" else
+        f"Mean vs median comparison highlights data skewness and presence of extreme transaction values."
+    )
+    return fig, insight, df_th
+
+
+def chart_report_group_breakdown(
+    groupby_table: List[Dict[str, Any]], 
+    is_dark: bool = False, 
+    lang: str = "vi"
+) -> Tuple[Optional[go.Figure], str, pd.DataFrame]:
+    """
+    Biểu đồ thanh ngang Pareto hiện đại thể hiện đóng góp theo từng nhóm phân loại chính (Phần 6.3 Báo cáo).
+    Áp dụng bo góc cornerradius=8, dải màu sống động, nhãn giá trị và tỷ trọng % chi tiết.
+    """
+    if not groupby_table:
+        return None, "", pd.DataFrame()
+        
+    df_grp = pd.DataFrame(groupby_table)
+    if "value" not in df_grp.columns or "group_name" not in df_grp.columns:
+        return None, "", pd.DataFrame()
+        
+    def _parse_num(val_in):
+        if val_in is None:
+            return 0.0
+        if isinstance(val_in, (int, float)):
+            return float(val_in)
+        cleaned = re.sub(r"[^\d,\.]", "", str(val_in)).strip()
+        if not cleaned:
+            return 0.0
+        if "," in cleaned and "." in cleaned:
+            if cleaned.rfind(".") > cleaned.rfind(","):
+                cleaned = cleaned.replace(",", "")
+            else:
+                cleaned = cleaned.replace(".", "").replace(",", ".")
+        elif "," in cleaned:
+            cleaned = cleaned.replace(",", ".")
+        try:
+            return float(cleaned)
+        except Exception:
+            return 0.0
+
+    df_grp["num_value"] = df_grp["value"].apply(_parse_num)
+    # Filter out entries with zero value if other entries exist
+    non_zero = df_grp[df_grp["num_value"] > 0]
+    if not non_zero.empty:
+        df_grp = non_zero
+
+    # Sort ascending so the top category is displayed at the top of the horizontal bar chart
+    df_grp = df_grp.sort_values(by="num_value", ascending=True).tail(10)
+    
+    tokens = get_chart_theme_tokens(is_dark)
+    
+    text_labels = []
+    for _, r in df_grp.iterrows():
+        sh_raw = str(r.get("share_pct", "")).strip()
+        sh_disp = sh_raw if sh_raw.endswith("%") else (f"{sh_raw}%" if sh_raw else "")
+        v_disp = str(r.get("value", ""))
+        if "đ" in v_disp:
+            val_text = v_disp
+        else:
+            val_text = format_vnd(r["num_value"])
+        text_labels.append(f" {val_text} ({sh_disp})" if sh_disp else f" {val_text}")
+        
+    palette = ["#6366F1", "#06B6D4", "#10B981", "#EC4899", "#F59E0B", "#8B5CF6", "#3B82F6", "#14B8A6"]
+    bar_colors = [palette[i % len(palette)] for i in range(len(df_grp))]
+    
+    fig = go.Figure(go.Bar(
+        y=df_grp["group_name"],
+        x=df_grp["num_value"],
+        orientation="h",
+        text=text_labels,
+        textposition="outside",
+        textfont=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color=tokens["text_color"]),
+        marker=dict(
+            color=bar_colors,
+            cornerradius=8,
+            line=dict(width=0)
+        ),
+        hovertemplate="<b>%{y}</b><br>Quy mô: %{x:,.0f} ₫<extra></extra>"
+    ))
+    
+    title = "Cơ Cấu Giá Trị Đóng Góp Theo Từng Nhóm Phân Loại (Top Chiếm Tỷ Trọng)" if lang == "vi" else "Value Contribution by Primary Group Breakdown"
+    calc_height = max(320, len(df_grp) * 38 + 120)
+    style_figure(fig, theme=is_dark, lang=lang, title=title, height=calc_height, side_legend=False)
+    fig.update_layout(margin=dict(l=160, r=150, t=52, b=35))
+    fig.update_xaxes(title="Tổng giá trị quy mô (VNĐ)", showgrid=True)
+    fig.update_yaxes(title="")
+    
+    top_item = df_grp.iloc[-1]
+    top_share = str(top_item.get("share_pct", "")).strip()
+    top_val_str = str(top_item.get("value", "")) if "đ" in str(top_item.get("value", "")) else format_vnd(top_item["num_value"])
+    insight = (
+        f"Nhóm dẫn đầu **'{top_item['group_name']}'** đạt **{top_val_str}**"
+        + (f" ({top_share} tổng quy mô)" if top_share else "")
+        + ". Doanh nghiệp cần tiếp tục duy trì ưu tiên nguồn lực và tối ưu hóa chuỗi cung ứng cho nhóm hạt nhân này."
+        if lang == "vi" else
+        f"Top category '{top_item['group_name']}' contributes {top_val_str} ({top_share} share)."
+    )
+    return fig, insight, df_grp
 
 
 # ==============================================================================

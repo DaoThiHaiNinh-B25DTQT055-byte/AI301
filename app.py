@@ -60,6 +60,9 @@ from charts import (
     chart_catalog_low_stock_alerts,
     chart_data_quality_missing_bars,
     chart_dynamic_builder,
+    chart_report_kpi_comparison,
+    chart_report_thematic_distribution,
+    chart_report_group_breakdown,
     render_chart_card
 )
 
@@ -1832,12 +1835,14 @@ with tab_analytics:
             st.write("")
             
             # 5. TIỂU MỤC THỐNG KÊ & BÁO CÁO CHUYÊN SÂU
+            st.markdown('<div class="report-subtabs-wrap">', unsafe_allow_html=True)
             stat_sub1, stat_sub2, stat_sub3, stat_sub4 = st.tabs([
                 t("analytics_sub_funnel", lang),
                 t("analytics_sub_risks", lang),
                 t("analytics_sub_team", lang),
                 t("analytics_sub_business", lang)
             ])
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # SUB-TAB 1: PHỄU CHUYỂN ĐỔI & TIẾN ĐỘ QUY TRÌNH (Yêu cầu -> Hồ sơ -> Bản nháp)
             with stat_sub1:
@@ -1984,23 +1989,26 @@ with tab_analytics:
             s6_d = report_pkg["section_6"]
 
             # ------------------------------------------------------------------------------------
-            # PHẦN 1: TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY)
+            # PHẦN 1: TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY) - DẪN CHỨNG TỔNG QUAN & ĐỘ PHỦ DỮ LIỆU
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid var(--accent-indigo); margin-bottom: 18px;">
                 <div style="font-size: 16px; font-weight: 800; color: var(--accent-indigo); margin-bottom: 8px;">
                     1. TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY)
                 </div>
-                <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+                <div style="font-size: 14px; color: var(--text-primary); line-height: 1.8; margin-bottom: 12px;">
+                    {s1_d.get('executive_narrative', '')}
+                </div>
+                <div style="font-size: 13.5px; color: var(--text-secondary); line-height: 1.8; padding-top: 8px; border-top: 1px solid var(--border-card);">
                     • <b>Tên bộ dữ liệu phân tích:</b> <span style="font-weight: 700; color: var(--text-primary);">{s1_d['dataset_name']}</span><br>
-                    • <b>Quy mô tập dữ liệu:</b> {s1_d['total_rows']:,} dòng dữ liệu • {s1_d['total_cols']} trường thông tin.<br>
-                    • <b>Bối cảnh & Loại hình dữ liệu:</b> {s1_d['context_description']}
+                    • <b>Quy mô dữ liệu:</b> {s1_d['total_rows']:,} dòng dữ liệu • {s1_d['total_cols']} trường thông tin (Độ hoàn thiện: <b>{s1_d.get('data_completeness_pct', 100):.1f}%</b>)<br>
+                    • <b>Bối cảnh & Loại hình:</b> {s1_d['context_description']}
                 </div>
             </div>
             """), unsafe_allow_html=True)
 
             if s1_d.get("quantitative_summary"):
-                st.markdown(clean_html('<div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">📊 Tổng giá trị và Độ phủ của các chỉ số định lượng chính:</div>'), unsafe_allow_html=True)
+                st.markdown(clean_html('<div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">📊 Tổng giá trị tích lũy và Diễn giải chỉ số định lượng kèm dẫn chứng cụ thể:</div>'), unsafe_allow_html=True)
                 s1_cols_ui = st.columns(min(4, max(1, len(s1_d["quantitative_summary"]))))
                 for idx_q, qs in enumerate(s1_d["quantitative_summary"]):
                     target_c = s1_cols_ui[idx_q % len(s1_cols_ui)]
@@ -2009,12 +2017,16 @@ with tab_analytics:
                         <div class="stat-kpi-card" style="padding: 14px 16px; margin-bottom: 12px;">
                             <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">{qs['column_name']}</div>
                             <div class="stat-kpi-value" style="font-size: 20px; line-height: 28px;">{qs['sum']:,.0f}</div>
-                            <div style="font-size: 12px; color: var(--accent-indigo); margin-top: 4px;">Độ phủ: <b>{qs['coverage_text']}</b></div>
+                            <div style="font-size: 11.5px; color: var(--accent-indigo); margin-top: 4px;">Độ phủ: <b>{qs['coverage_text']}</b></div>
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;">
+                                Trung bình: <b>{qs['mean']:,.1f}</b> | Trung vị: <b>{qs['median']:,.1f}</b><br>
+                                Cực trị: <b>{qs.get('min', 0):,.0f}</b> ➔ <b>{qs.get('max', 0):,.0f}</b>
+                            </div>
                         </div>
                         """), unsafe_allow_html=True)
 
             # ------------------------------------------------------------------------------------
-            # PHẦN 2: DASHBOARD KPI (SO SÁNH KỲ GẦN NHẤT VS KỲ LIỀN TRƯỚC)
+            # PHẦN 2: DASHBOARD KPI (SO SÁNH KỲ GẦN NHẤT VS KỲ LIỀN TRƯỚC) - KÈM DẪN CHỨNG DỮ LIỆU
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid var(--accent-cyan); margin-bottom: 18px; margin-top: 10px;">
@@ -2022,7 +2034,7 @@ with tab_analytics:
                     2. DASHBOARD KPI (SO SÁNH KỲ GẦN NHẤT VS KỲ LIỀN TRƯỚC)
                 </div>
                 <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-                    Đối chiếu kỳ gần nhất với kỳ liền trước. Các chỉ số không có trong file dữ liệu được thể hiện bằng dấu "—" nhằm đảm bảo tính trung thực số liệu.
+                    Đối chiếu kỳ gần nhất với kỳ liền trước kèm dẫn chứng dữ liệu cụ thể cho từng chỉ số. Các chỉ số không có trong file dữ liệu được thể hiện bằng dấu "—" nhằm bảo đảm tính trung thực dữ liệu, tuyệt đối không tự ý suy đoán số liệu tài chính khi file nguồn không cung cấp.
                 </div>
             </div>
             """), unsafe_allow_html=True)
@@ -2033,12 +2045,30 @@ with tab_analytics:
                     "metric": "Chỉ số",
                     "current": "Giá trị (Kỳ gần nhất)",
                     "previous": "Kỳ trước",
-                    "change": "Thay đổi %"
+                    "change": "Thay đổi %",
+                    "status": "Đánh giá & Xu hướng",
+                    "evidence": "Dẫn chứng dữ liệu thực tế"
                 })
-                render_safe_dataframe(kpi_df_display[["Chỉ số", "Giá trị (Kỳ gần nhất)", "Kỳ trước", "Thay đổi %"]], width="stretch", hide_index=True)
+                display_cols = [c for c in ["Chỉ số", "Giá trị (Kỳ gần nhất)", "Kỳ trước", "Thay đổi %", "Đánh giá & Xu hướng", "Dẫn chứng dữ liệu thực tế"] if c in kpi_df_display.columns]
+                render_safe_dataframe(kpi_df_display[display_cols], width="stretch", hide_index=True)
+                
+            if s2_d.get("kpi_analysis_notes"):
+                st.markdown(clean_html(f"""
+                <div style="background: rgba(2, 132, 199, 0.08); border-left: 3px solid #0284C7; padding: 12px 16px; border-radius: 8px; font-size: 13px; color: var(--text-primary); margin-top: 10px; margin-bottom: 14px; line-height: 1.7;">
+                    💡 <b>Phân tích xu hướng & Dẫn chứng 2 kỳ:</b> {s2_d['kpi_analysis_notes']}
+                </div>
+                """), unsafe_allow_html=True)
+
+            # Biểu đồ trực quan hóa KPI so sánh 2 kỳ với màu sắc hiện đại 2026 SaaS
+            try:
+                fig_kpi, ins_kpi, df_kpi_plot = chart_report_kpi_comparison(s2_d.get("kpi_table", []), is_dark=is_dark, lang=lang)
+                if fig_kpi is not None:
+                    render_chart_card(fig_kpi, "Biểu Đồ Đối Chiếu KPI: Kỳ Gần Nhất vs Kỳ Liền Trước", ins_kpi, df_kpi_plot, "report_kpi_comp", lang=lang)
+            except Exception:
+                pass
 
             # ------------------------------------------------------------------------------------
-            # PHẦN 3: PHÂN TÍCH CHUYÊN ĐỀ (CHI TIẾT TỪNG CỘT SỐ HỌC)
+            # PHẦN 3: PHÂN TÍCH CHUYÊN ĐỀ (CHI TIẾT TỪNG CỘT SỐ HỌC KÈM DẪN CHỨNG CỰC TRỊ)
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid var(--accent-pink); margin-bottom: 18px; margin-top: 20px;">
@@ -2046,15 +2076,22 @@ with tab_analytics:
                     3. PHÂN TÍCH CHUYÊN ĐỀ THEO TỪNG CHỈ SỐ ĐỊNH LƯỢNG
                 </div>
                 <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-                    Tự động phân tích thống kê chi tiết (Tổng, Trung bình, Trung vị, Độ lệch chuẩn, Min, Max, Tứ phân vị, Hệ số biến thiên CV) cho từng cột số học có trong bộ dữ liệu.
+                    Tự động phân tích thống kê chi tiết và giải thích dễ hiểu từng chỉ số định lượng: Trung bình, Trung vị, Độ lệch chuẩn, Cực trị có dẫn chứng thực thể, Khoảng tứ phân vị (IQR) và Hệ số biến thiên (CV).
                 </div>
             </div>
             """), unsafe_allow_html=True)
 
             thematic_list = s3_d.get("thematic_analysis", [])
             if thematic_list:
+                try:
+                    fig_th, ins_th, df_th_plot = chart_report_thematic_distribution(thematic_list, is_dark=is_dark, lang=lang)
+                    if fig_th is not None:
+                        render_chart_card(fig_th, "Đối Chiếu Phân Phối Mean vs Median Từng Chỉ Số", ins_th, df_th_plot, "report_thematic_dist", lang=lang)
+                except Exception:
+                    pass
+
                 for th in thematic_list:
-                    with st.expander(f"📈 Phân tích chuyên sâu chỉ số '{th['column']}' (Tổng: {th['sum']:,.0f})", expanded=True):
+                    with st.expander(f"📈 Phân tích chuyên sâu chỉ số '{th['column']}' (Tổng quy mô: {th['sum']:,.0f})", expanded=True):
                         th_c1, th_c2, th_c3, th_c4 = st.columns(4)
                         with th_c1:
                             st.metric("Trung bình (Mean)", f"{th['mean']:,.1f}")
@@ -2063,41 +2100,60 @@ with tab_analytics:
                         with th_c3:
                             st.metric("Độ lệch chuẩn (Std)", f"{th['std']:,.1f}")
                         with th_c4:
-                            st.metric("Biên độ (Min - Max)", f"{th['min']:,.0f} ➔ {th['max']:,.0f}")
+                            min_disp = f"{th['min']:,.0f}" + (f" ({th.get('min_name', '')})" if th.get('min_name') else "")
+                            max_disp = f"{th['max']:,.0f}" + (f" ({th.get('max_name', '')})" if th.get('max_name') else "")
+                            st.metric("Biên độ (Min ➔ Max)", f"{th['min']:,.0f} ➔ {th['max']:,.0f}")
                             
                         st.markdown(clean_html(f"""
-                        <div style="background: var(--bg-surface-subtle); padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--text-secondary); margin-top: 8px;">
-                            • <b>Khoảng tứ phân vị (Q25 - Q75, IQR):</b> {th['q25']:,.1f} ➔ {th['q75']:,.1f} (IQR = {th['iqr']:,.1f})<br>
-                            • <b>Nhận xét phân phối:</b> {th['dist_note']}
+                        <div style="background: var(--bg-surface-subtle); padding: 14px 18px; border-radius: 10px; font-size: 13px; color: var(--text-secondary); margin-top: 10px; line-height: 1.8;">
+                            • <b>Phân tích Trung bình vs Trung vị (Mean vs Median):</b> {th.get('mean_vs_median_insight', '')}<br>
+                            • <b>Độ phân tán & Quản trị rủi ro:</b> {th.get('dist_note', '')}<br>
+                            • <b>Phân khúc 50% giao dịch phổ biến:</b> {th.get('middle_range_note', '')}<br>
+                            • <b>Dẫn chứng Cực trị thực tế:</b> Giá trị nhỏ nhất là <b>{th['min']:,.0f}</b> (tại '{th.get('min_name', 'Bản ghi')}'), giá trị lớn nhất đạt <b>{th['max']:,.0f}</b> (tại '{th.get('max_name', 'Bản ghi')}'). Chênh lệch biên độ cực đại: <b>{th.get('spread', 0):,.0f}</b>.
                         </div>
                         """), unsafe_allow_html=True)
             else:
                 st.info("Tập dữ liệu không chứa cột số học định lượng để phân tích chuyên đề sâu.")
 
             # ------------------------------------------------------------------------------------
-            # PHẦN 4: KẾT LUẬN TỪ DỮ LIỆU THỰC TẾ
+            # PHẦN 4: KẾT LUẬN QUẢN TRỊ (EXECUTIVE CONCLUSIONS) - CÓ DẪN CHỨNG SỐ LIỆU ĐANH THÉP
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid var(--status-warning); margin-bottom: 18px; margin-top: 20px;">
                 <div style="font-size: 16px; font-weight: 800; color: var(--status-warning); margin-bottom: 8px;">
-                    4. KẾT LUẬN TỪ DỮ LIỆU THỰC TẾ
+                    4. KẾT LUẬN QUẢN TRỊ (EXECUTIVE CONCLUSIONS)
                 </div>
-                <div style="font-size: 13.5px; color: var(--text-primary); line-height: 1.8;">
-                    {''.join([f'<div style="margin-bottom: 6px;">• {c}</div>' for c in s4_d.get('conclusions', [])])}
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Các nhận định quản trị cốt lõi được hệ thống tự động tổng hợp trực tiếp từ dữ liệu thực tế kèm dẫn chứng số liệu cụ thể:
                 </div>
             </div>
             """), unsafe_allow_html=True)
 
+            structured_conclusions = s4_d.get("structured_conclusions", [])
+            if structured_conclusions:
+                for sc in structured_conclusions:
+                    evidence_badge = f'<div style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid #F59E0B; padding: 6px 12px; border-radius: 6px; font-size: 12.5px; color: #B45309; margin-top: 8px;">📊 <b>Dẫn chứng số liệu:</b> {sc["evidence"]}</div>' if sc.get("evidence") else ''
+                    st.markdown(clean_html(f"""
+                    <div style="background: var(--bg-surface); border: 1px solid var(--border-card); border-left: 3px solid #F59E0B; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px;">
+                        <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 6px;">{sc['title']}</div>
+                        <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.7;">{sc['detail']}</div>
+                        {evidence_badge}
+                    </div>
+                    """), unsafe_allow_html=True)
+            elif s4_d.get("conclusions"):
+                for c_txt in s4_d.get("conclusions", []):
+                    st.markdown(clean_html(f'<div style="margin-bottom: 6px; font-size: 13px;">• {c_txt}</div>'), unsafe_allow_html=True)
+
             # ------------------------------------------------------------------------------------
-            # PHẦN 5: ĐỀ XUẤT HÀNH ĐỘNG (KÈM ƯU TIÊN VÀ CHỈ SỐ ĐO LƯỜNG)
+            # PHẦN 5: ĐỀ XUẤT HÀNH ĐỘNG (MA TRẬN HÀNH ĐỘNG KÈM ƯU TIÊN, DẪN CHỨNG VÀ KPI)
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid var(--status-success); margin-bottom: 18px; margin-top: 20px;">
                 <div style="font-size: 16px; font-weight: 800; color: var(--status-success); margin-bottom: 6px;">
-                    5. ĐỀ XUẤT HÀNH ĐỘNG & CHỈ SỐ ĐO LƯỜNG QUẢN TRỊ
+                    5. ĐỀ XUẤT HÀNH ĐỘNG & MA TRẬN QUẢN TRỊ THỰC THI
                 </div>
                 <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-                    Các khuyến nghị quản trị cụ thể được lượng hóa kèm mức độ ưu tiên, chỉ số đo lường KPI và thời hạn hoàn thành.
+                    Ma trận các khuyến nghị quản trị cụ thể được lượng hóa kèm mức độ ưu tiên, căn cứ dữ liệu thực tế, chỉ số đo lường KPI, đơn vị chịu trách nhiệm và thời hạn thực thi.
                 </div>
             </div>
             """), unsafe_allow_html=True)
@@ -2105,16 +2161,18 @@ with tab_analytics:
             recs_df = pd.DataFrame(s5_d.get("recommendations", []))
             if not recs_df.empty:
                 recs_display = recs_df.rename(columns={
-                    "stt": "STT",
-                    "action": "Khuyến nghị quản trị",
-                    "priority": "Mức độ ưu tiên",
+                    "priority_badge": "Mức ưu tiên",
+                    "action": "Khuyến nghị quản trị chi tiết",
+                    "evidence": "Căn cứ & Dẫn chứng dữ liệu",
                     "metric": "Chỉ số đo lường (KPI Target)",
+                    "owner": "Đơn vị phụ trách",
                     "timeline": "Thời hạn"
                 })
-                render_safe_dataframe(recs_display[["STT", "Khuyến nghị quản trị", "Mức độ ưu tiên", "Chỉ số đo lường (KPI Target)", "Thời hạn"]], width="stretch", hide_index=True)
+                display_cols = [c for c in ["Mức ưu tiên", "Khuyến nghị quản trị chi tiết", "Căn cứ & Dẫn chứng dữ liệu", "Chỉ số đo lường (KPI Target)", "Đơn vị phụ trách", "Thời hạn"] if c in recs_display.columns]
+                render_safe_dataframe(recs_display[display_cols], width="stretch", hide_index=True)
 
             # ------------------------------------------------------------------------------------
-            # PHẦN 6: CHI TIẾT BỘ DỮ LIỆU & THỐNG KÊ KỸ THUẬT
+            # PHẦN 6: CHI TIẾT BỘ DỮ LIỆU & THỐNG KÊ KỸ THUẬT (CỰC TRỊ, GROUP-BY & CỘT CÓ DẪN CHỨNG)
             # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
             <div class="bento-surface" style="border-left: 4px solid #64748B; margin-bottom: 18px; margin-top: 20px;">
@@ -2122,7 +2180,7 @@ with tab_analytics:
                     6. CHI TIẾT BỘ DỮ LIỆU & THỐNG KÊ KỸ THUẬT
                 </div>
                 <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
-                    Bao gồm thông tin làm sạch dữ liệu, nhận xét thống kê tự động, bảng tổng hợp theo nhóm và bảng thống kê chi tiết theo từng cột.
+                    Bao gồm thông tin làm sạch dữ liệu, nhận xét thống kê tự động các cực trị có dẫn chứng, bảng tổng hợp theo nhóm và bảng thống kê chi tiết theo từng cột.
                 </div>
             </div>
             """), unsafe_allow_html=True)
@@ -2136,7 +2194,7 @@ with tab_analytics:
                     <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 8px;">6.1. Thông tin làm sạch dữ liệu:</div>
                     <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
                         • <b>Số dòng sau làm sạch:</b> {clean_info_ui.get('cleaned_rows', 0):,} dòng • <b>Số cột:</b> {clean_info_ui.get('cleaned_cols', 0)} cột<br>
-                        • <b>Số ô trống đã kiểm tra:</b> {clean_info_ui.get('empty_cells_count', 0):,} ô<br>
+                        • <b>Số ô trống đã kiểm soát:</b> {clean_info_ui.get('empty_cells_count', 0):,} ô (Độ hoàn thiện: <b>{clean_info_ui.get('completeness_pct', 100):.1f}%</b>)<br>
                         • <b>Số dòng trùng lặp đã loại bỏ:</b> {clean_info_ui.get('duplicate_rows_removed', 0):,} dòng<br>
                         • <b>Điểm chất lượng dữ liệu:</b> <span class="badge-capsule badge-green">{clean_info_ui.get('quality_score', 100)} / 100 điểm</span>
                     </div>
@@ -2153,36 +2211,48 @@ with tab_analytics:
                         • <b>Giá trị nhỏ nhất (Min):</b> {stat_obs_ui.get('min_val', 0):,.0f}<br>
                         • <b>Giá trị lớn nhất (Max):</b> {stat_obs_ui.get('max_val', 0):,.0f}<br>
                         • <b>Giá trị trung bình:</b> {stat_obs_ui.get('mean_val', 0):,.1f}<br>
-                        • <b>Nhóm dẫn đầu:</b> '{stat_obs_ui.get('top_group')}' ({stat_obs_ui.get('top_group_share', 0):.1f}% tổng giá trị)
+                        • <b>Nhóm dẫn đầu:</b> '{stat_obs_ui.get('top_group')}' ({stat_obs_ui.get('top_group_share', 0):.1f}% tổng giá trị)<br>
+                        • <b>Dẫn chứng cực trị:</b> {stat_obs_ui.get('evidence_extreme', '')}
                     </div>
                 </div>
                 """), unsafe_allow_html=True)
 
-            # 6.3 Bảng Tổng hợp theo nhóm (Group-by)
+            # 6.3 Bảng Tổng hợp theo nhóm (Group-by) có dẫn chứng & Biểu đồ Pareto
             grp_rows_ui = s6_d.get("groupby_table", [])
             if grp_rows_ui:
-                st.markdown(clean_html('<div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 6px; margin-bottom: 8px;">6.3. Bảng Tổng hợp theo nhóm (Group-by theo chiều phân loại chính):</div>'), unsafe_allow_html=True)
+                st.markdown(clean_html('<div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 6px; margin-bottom: 8px;">6.3. Bảng Tổng hợp theo nhóm & Biểu đồ đóng góp (Group-by theo chiều phân loại chính):</div>'), unsafe_allow_html=True)
+                try:
+                    fig_grp, ins_grp, df_grp_plot = chart_report_group_breakdown(grp_rows_ui, is_dark=is_dark, lang=lang)
+                    if fig_grp is not None:
+                        render_chart_card(fig_grp, "Cơ Cấu Giá Trị Đóng Góp Theo Nhóm Phân Loại", ins_grp, df_grp_plot, "report_grp_breakdown", lang=lang)
+                except Exception:
+                    pass
+
                 grp_df_display = pd.DataFrame(grp_rows_ui).rename(columns={
-                    "group_name": "Nhóm",
+                    "group_name": "Nhóm phân loại",
                     "value": "Giá trị",
                     "row_count": "Số dòng được tính",
-                    "share_pct": "Tỷ trọng (%)"
+                    "share_pct": "Tỷ trọng (%)",
+                    "evidence": "Dẫn chứng thực tế"
                 })
-                render_safe_dataframe(grp_df_display[["Nhóm", "Giá trị", "Số dòng được tính", "Tỷ trọng (%)"]], width="stretch", hide_index=True)
+                display_grp_cols = [c for c in ["Nhóm phân loại", "Giá trị", "Số dòng được tính", "Tỷ trọng (%)", "Dẫn chứng thực tế"] if c in grp_df_display.columns]
+                render_safe_dataframe(grp_df_display[display_grp_cols], width="stretch", hide_index=True)
 
             # 6.4 Bảng Thống kê theo từng cột
             col_rows_ui = s6_d.get("col_stats_table", [])
             if col_rows_ui:
                 st.markdown(clean_html('<div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 14px; margin-bottom: 8px;">6.4. Bảng Thống kê chi tiết theo từng cột dữ liệu:</div>'), unsafe_allow_html=True)
                 col_df_display = pd.DataFrame(col_rows_ui).rename(columns={
-                    "column": "Cột",
-                    "missing": "Ô trống",
-                    "unique": "Giá trị khác nhau",
+                    "column_name": "Cột",
+                    "null_count": "Ô trống",
+                    "unique_count": "Giá trị khác nhau",
                     "mean": "Trung bình",
                     "min": "Nhỏ nhất",
-                    "max": "Lớn nhất"
+                    "max": "Lớn nhất",
+                    "evidence": "Ý nghĩa & Dẫn chứng"
                 })
-                render_safe_dataframe(col_df_display[["Cột", "Ô trống", "Giá trị khác nhau", "Trung bình", "Nhỏ nhất", "Lớn nhất"]], width="stretch", hide_index=True)
+                display_stat_cols = [c for c in ["Cột", "Ô trống", "Giá trị khác nhau", "Trung bình", "Nhỏ nhất", "Lớn nhất", "Ý nghĩa & Dẫn chứng"] if c in col_df_display.columns]
+                render_safe_dataframe(col_df_display[display_stat_cols], width="stretch", hide_index=True)
 
             # ------------------------------------------------------------------------------------
             # CÁC NÚT XUẤT FILE HOÀN CHỈNH: MICROSOFT WORD (.DOCX) & EXCEL (.XLSX)
@@ -2197,7 +2267,7 @@ with tab_analytics:
             c_exp_word, c_exp_excel = st.columns(2)
             
             with c_exp_word:
-                # Sinh tệp Microsoft Word (.docx) chuẩn hóa 100% cấu trúc 6 phần
+                # Sinh tệp Microsoft Word (.docx) chuẩn hóa 100% cấu trúc 6 phần có dẫn chứng
                 word_file_stream = export_report_to_word(report_pkg)
                 word_bytes = word_file_stream.getvalue()
                 
@@ -2238,6 +2308,21 @@ with tab_analytics:
 # TAB 4: DANH MỤC BẢNG GIÁ & KHO KHẢ DỤNG
 # ====================================================================================================
 with tab_catalog:
+    # Tự động đồng bộ và bảo đảm catalog_df luôn đầy đủ dữ liệu khả dụng từ Minh An
+    if (
+        st.session_state.get("catalog_df") is None 
+        or not isinstance(st.session_state.catalog_df, pd.DataFrame) 
+        or st.session_state.catalog_df.empty
+        or "AvailableStock" not in st.session_state.catalog_df.columns
+    ):
+        try:
+            p_df, s_df, pol_df = DataLoader.load_default_data()
+            st.session_state.catalog_df = p_df
+            st.session_state.sales_df = s_df
+            st.session_state.policy_df = pol_df
+        except Exception:
+            pass
+
     icon_pkg = get_icon_tile("package", "cyan")
     st.markdown(clean_html(f"""
     <div class="section-header-row">
@@ -2314,8 +2399,9 @@ with tab_settings:
                 if sheets:
                     st.success(f"Đã cập nhật dữ liệu từ file: {up_file.name}")
                     first_sheet = list(sheets.keys())[0]
-                    st.session_state.catalog_df = sheets[first_sheet]
-                    st.session_state.agent = MinhAnSalesAgent(st.session_state.catalog_df, st.session_state.sales_df, st.session_state.policy_df)
+                    new_agent = MinhAnSalesAgent(sheets[first_sheet], st.session_state.sales_df, st.session_state.policy_df)
+                    st.session_state.catalog_df = new_agent.products_df
+                    st.session_state.agent = new_agent
             except Exception as e:
                 st.error(f"Lỗi: {e}")
                 

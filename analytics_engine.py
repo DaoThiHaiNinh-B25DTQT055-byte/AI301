@@ -313,8 +313,9 @@ class StatisticalAnalyticsEngine:
         template = "plotly_dark" if is_dark else "plotly_white"
         text_color = "#F8FAFC" if is_dark else "#0F172A"
         muted_color = "#94A3B8" if is_dark else "#64748B"
-        border_stroke = "#070b18" if is_dark else "#ffffff"
-        color_palette = ["#6366F1", "#06B6D4", "#10B981", "#F43F5E", "#F59E0B", "#8B5CF6", "#3B82F6", "#EC4899"]
+        border_stroke = "#0f172a" if is_dark else "#ffffff"
+        primary_color = "#818CF8" if is_dark else "#4F46E5"
+        color_palette = ["#6366F1", "#06B6D4", "#10B981", "#EC4899", "#F59E0B", "#8B5CF6", "#3B82F6", "#14B8A6"]
         
         # Resolve columns dynamically
         cat_col = cls.resolve_category_column(df)
@@ -333,13 +334,14 @@ class StatisticalAnalyticsEngine:
                 agg, 
                 names=cat_col, 
                 values=val_col, 
-                hole=0.62,
+                hole=0.68,
                 color_discrete_sequence=color_palette,
                 template=template
             )
             fig_donut.update_traces(
                 textposition='inside', 
                 textinfo='percent', 
+                hovertemplate="<b>%{label}</b><br>Doanh thu: %{value:,.0f} ₫<br>Tỷ trọng: %{percent:.1%}<extra></extra>",
                 marker=dict(line=dict(color=border_stroke, width=2.5))
             )
             fig_donut.update_layout(
@@ -352,24 +354,23 @@ class StatisticalAnalyticsEngine:
                     xanchor="left",
                     x=1.02,
                     bgcolor="rgba(0,0,0,0)",
-                    font=dict(family="Be Vietnam Pro, sans-serif", size=12, color=text_color)
+                    font=dict(family="Be Vietnam Pro, sans-serif", size=12.5, color=text_color)
                 ),
                 annotations=[
                     dict(
-                        text=f"<b>Tổng DT</b><br><span style='font-size:12px;color:{muted_color}'>{rev_label}</span>",
+                        text=f"<span style='font-size:11px;font-weight:700;letter-spacing:1px;color:{muted_color};text-transform:uppercase;'>TỔNG DOANH THU</span><br><span style='font-size:20px;font-weight:800;color:{primary_color};'>{rev_label}</span>",
                         x=0.5, y=0.5,
-                        font_size=17,
-                        font_family="Be Vietnam Pro",
+                        font_family="Be Vietnam Pro, sans-serif",
                         showarrow=False
                     )
                 ],
-                font=dict(family="Be Vietnam Pro", size=13),
+                font=dict(family="Be Vietnam Pro, sans-serif", size=13),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)"
             )
             charts["donut_revenue"] = fig_donut
 
-        # 2. Revenue by Customer / Horizontal Bar Chart with Side Value Callouts
+        # 2. Revenue by Customer / Horizontal Bar Chart with Rounded Corners & Side Value Callouts
         if cust_col and val_col and val_col in df.columns:
             plot_df = df.copy()
             plot_df[val_col] = clean_vn_series(plot_df[val_col])
@@ -384,24 +385,26 @@ class StatisticalAnalyticsEngine:
                 template=template,
                 text="display_text",
                 color=val_col,
-                color_continuous_scale=[[0, "#818CF8"], [0.6, "#6366F1"], [1, "#4338CA"]]
+                color_continuous_scale=[[0, "#A5B4FC"], [0.5, "#6366F1"], [1, "#4338CA"]]
             )
             fig_bar.update_traces(
                 textposition='outside',
-                marker=dict(line=dict(width=0))
+                texttemplate="<b>%{text}</b>",
+                hovertemplate="<b>%{y}</b><br>Doanh thu: %{x:,.0f} ₫<extra></extra>",
+                marker=dict(cornerradius=8, line=dict(width=0))
             )
             fig_bar.update_layout(
                 coloraxis_showscale=False,
                 xaxis_title="Tổng Doanh Thu (VNĐ)",
                 yaxis_title="",
-                margin=dict(t=35, b=30, l=120, r=100),
-                font=dict(family="Be Vietnam Pro", size=12.5),
+                margin=dict(t=35, b=30, l=120, r=110),
+                font=dict(family="Be Vietnam Pro, sans-serif", size=12.5),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)"
             )
             charts["bar_customer"] = fig_bar
 
-        # 3. Value Distribution Histogram / Boxplot with Median Callout
+        # 3. Value Distribution Histogram / Boxplot with Median Callout & Modern Translucent Fill
         if val_col and val_col in df.columns:
             plot_df = df.copy()
             plot_df[val_col] = pd.to_numeric(plot_df[val_col], errors='coerce').dropna()
@@ -413,27 +416,36 @@ class StatisticalAnalyticsEngine:
                     template=template,
                     color_discrete_sequence=["#F43F5E"]
                 )
+                fig_box.update_traces(
+                    fillcolor="rgba(244, 63, 94, 0.14)",
+                    line=dict(color="#F43F5E", width=2),
+                    marker=dict(color="#FB7185", size=7, opacity=0.85),
+                    jitter=0.25,
+                    pointpos=-1.8,
+                    hovertemplate="Giá trị: %{y:,.0f} ₫<extra></extra>"
+                )
                 med_val = plot_df[val_col].median()
                 med_fmt = f"{med_val/1e6:,.1f} Tr.₫" if med_val >= 1e6 else f"{med_val:,.0f} ₫"
                 fig_box.add_annotation(
                     y=med_val,
                     x=0.35,
-                    text=f"Trung vị: {med_fmt}",
+                    text=f"<b>Trung vị: {med_fmt}</b>",
                     showarrow=True,
                     arrowhead=2,
                     arrowcolor="#F43F5E",
-                    ax=60,
-                    ay=-20,
-                    font=dict(size=12, color=text_color, family="Be Vietnam Pro"),
-                    bgcolor="rgba(244, 63, 94, 0.15)",
+                    arrowwidth=1.5,
+                    ax=65,
+                    ay=-22,
+                    font=dict(size=12, color=text_color, family="Be Vietnam Pro, sans-serif"),
+                    bgcolor="rgba(244, 63, 94, 0.16)",
                     bordercolor="#F43F5E",
-                    borderwidth=1,
-                    borderpad=4
+                    borderwidth=1.5,
+                    borderpad=5
                 )
                 fig_box.update_layout(
                     yaxis_title="Giá Trị Đơn Hàng (VNĐ)",
-                    margin=dict(t=35, b=25, l=50, r=30),
-                    font=dict(family="Be Vietnam Pro", size=12.5),
+                    margin=dict(t=35, b=25, l=60, r=40),
+                    font=dict(family="Be Vietnam Pro, sans-serif", size=12.5),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)"
                 )

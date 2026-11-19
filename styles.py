@@ -452,6 +452,92 @@ div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {{
 }}
 
 /* -------------------------------------------------------------
+   2.2 CÁC TAB TRONG PHẦN BÁO CÁO (REPORT SUB-TABS)
+   MÀU XANH TECH INDIGO / CYAN PASTEL - KHÁC HOÀN TOÀN VỚI TAB CHÍNH MÀU HỒNG
+   ------------------------------------------------------------- */
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"],
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"],
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"],
+.report-subtabs-wrap div[data-testid="stTabs"] [data-baseweb="tab"],
+.report-subtabs-wrap div[data-testid="stTabs"] [role="tab"] {{
+    background: {'#EEF2FF' if not is_dark else 'rgba(99, 102, 241, 0.16)'} !important;
+    border: 1.5px solid {'#818CF8' if not is_dark else 'rgba(129, 140, 248, 0.45)'} !important;
+    border-radius: 12px !important;
+    padding: 8px 18px !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    color: {'#3730A3' if not is_dark else '#C7D2FE'} !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 8px {'rgba(99, 102, 241, 0.15)' if not is_dark else 'rgba(0, 0, 0, 0.25)'} !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+}}
+
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"] span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"] span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"] span,
+.report-subtabs-wrap div[data-testid="stTabs"] [data-baseweb="tab"] p,
+.report-subtabs-wrap div[data-testid="stTabs"] [role="tab"] span {{
+    color: {'#3730A3' if not is_dark else '#C7D2FE'} !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+}}
+
+/* Hover cho tab báo cáo: Sáng màu xanh tím */
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"]:hover,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"]:hover,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"]:hover,
+.report-subtabs-wrap div[data-testid="stTabs"] [data-baseweb="tab"]:hover {{
+    background: {'#E0E7FF' if not is_dark else 'rgba(99, 102, 241, 0.28)'} !important;
+    border-color: {'#6366F1' if not is_dark else '#A5B4FC'} !important;
+    color: {'#1E1B4B' if not is_dark else '#FFFFFF'} !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 16px {'rgba(99, 102, 241, 0.25)' if not is_dark else 'rgba(99, 102, 241, 0.35)'} !important;
+}}
+
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"]:hover p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [data-baseweb="tab"]:hover span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"]:hover p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[role="tab"]:hover span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"]:hover p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"]:hover span {{
+    color: {'#1E1B4B' if not is_dark else '#FFFFFF'} !important;
+}}
+
+/* Tab báo cáo đang chọn (Active): Gradient Tech Indigo & Blue sắc nét */
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [aria-selected="true"],
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[aria-selected="true"],
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"][aria-selected="true"],
+.report-subtabs-wrap div[data-testid="stTabs"] [aria-selected="true"] {{
+    background: linear-gradient(135deg, #4F46E5 0%, #3B82F6 50%, #06B6D4 100%) !important;
+    color: #FFFFFF !important;
+    border: 1.5px solid #93C5FD !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 20px rgba(79, 70, 229, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+    font-weight: 800 !important;
+    transform: translateY(-1px) scale(1.02) !important;
+}}
+
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [aria-selected="true"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [aria-selected="true"] span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[aria-selected="true"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] button[aria-selected="true"] span,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
+div[data-baseweb="tab-panel"] div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span,
+.report-subtabs-wrap div[data-testid="stTabs"] [aria-selected="true"] p,
+.report-subtabs-wrap div[data-testid="stTabs"] [aria-selected="true"] span {{
+    color: #FFFFFF !important;
+    font-weight: 800 !important;
+}}
+
+/* -------------------------------------------------------------
    2.1 WORKFLOW STEP NAVIGATION DOCK (MODERN TABS/PILLS IN TAB 1)
    ------------------------------------------------------------- */
 .step-nav-dock {{
