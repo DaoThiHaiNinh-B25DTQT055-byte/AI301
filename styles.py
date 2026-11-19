@@ -42,8 +42,8 @@ def get_app_styles(is_dark: bool = False) -> str:
         chip_border = "rgba(99, 102, 241, 0.38)"
         chip_text = "#c7d2fe"
         
-        tab_bg = "rgba(17, 24, 48, 0.85)"
-        tab_active_bg = "linear-gradient(135deg, #6366f1 0%, #22d3ee 100%)"
+        tab_bg = "rgba(244, 114, 182, 0.18)"
+        tab_active_bg = "linear-gradient(135deg, #F43F5E 0%, #EC4899 50%, #DB2777 100%)"
         tab_active_text = "#ffffff"
         
         input_bg = "rgba(11, 16, 35, 0.85)"
@@ -81,8 +81,8 @@ def get_app_styles(is_dark: bool = False) -> str:
         chip_border = "rgba(99, 102, 241, 0.24)"
         chip_text = "#4338ca"
         
-        tab_bg = "rgba(241, 245, 249, 0.9)"
-        tab_active_bg = "linear-gradient(135deg, #6366f1 0%, #22d3ee 100%)"
+        tab_bg = "#FCE7F3"
+        tab_active_bg = "linear-gradient(135deg, #F43F5E 0%, #EC4899 50%, #DB2777 100%)"
         tab_active_text = "#ffffff"
         
         input_bg = "rgba(255, 255, 255, 0.95)"
@@ -330,49 +330,203 @@ div[class*="st-key-minhan_header"] div.stButton > button:hover {{
 }}
 
 /* -------------------------------------------------------------
-   2. STICKY TABS (SEGMENTED PILL, 78PX TOP OFFSET)
+   2. STICKY TABS (CÁC KHỐI HÌNH CHỮ NHẬT BO GÓC MÀU HỒNG PASTEL NỔI BẬT)
    ------------------------------------------------------------- */
+div[data-testid="stTabs"] {{
+    margin-top: 10px !important;
+}}
+
 div[data-testid="stTabs"] [data-baseweb="tab-list"] {{
     position: sticky !important;
-    top: 78px !important;
+    top: 76px !important;
     z-index: 990 !important;
-    gap: 8px !important;
-    background: {tab_bg} !important;
-    backdrop-filter: blur(18px) saturate(160%) !important;
-    -webkit-backdrop-filter: blur(18px) saturate(160%) !important;
-    padding: 6px !important;
-    border-radius: var(--radius-pill) !important;
-    border: 1px solid var(--border-subtle) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    background: transparent !important;
+    padding: 8px 2px !important;
+    border: none !important;
     margin-bottom: 24px !important;
     width: fit-content !important;
     max-width: 100% !important;
     overflow-x: auto !important;
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08) !important;
+    scrollbar-width: none !important;
+    box-shadow: none !important;
 }}
 
-div[data-testid="stTabs"] [data-baseweb="tab"] {{
+div[data-testid="stTabs"] [data-baseweb="tab-list"]::-webkit-scrollbar {{
+    display: none !important;
+}}
+
+/* Hide default ugly underline borders and orange highlights */
+div[data-testid="stTabs"] [data-baseweb="tab-border"] {{
+    display: none !important;
+    height: 0px !important;
+    width: 0px !important;
+    visibility: hidden !important;
     background: transparent !important;
-    border-radius: var(--radius-pill) !important;
+}}
+
+div[data-testid="stTabs"] [data-baseweb="tab-highlight"] {{
+    display: none !important;
+    height: 0px !important;
+    width: 0px !important;
+    visibility: hidden !important;
+    background: transparent !important;
+}}
+
+/* Khối hình chữ nhật bo góc màu hồng pastel cho từng tab */
+div[data-testid="stTabs"] [data-baseweb="tab"],
+div[data-testid="stTabs"] button[role="tab"],
+div[data-testid="stTabs"] [role="tab"] {{
+    background: {'#FCE7F3' if not is_dark else 'rgba(244, 114, 182, 0.18)'} !important;
+    border: 1.5px solid {'#F472B6' if not is_dark else 'rgba(244, 114, 182, 0.45)'} !important;
+    border-radius: 12px !important;
     padding: 10px 22px !important;
-    font-size: 14px !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: {'#9D174D' if not is_dark else '#FBCFE8'} !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    letter-spacing: -0.2px !important;
+    box-shadow: 0 2px 8px {'rgba(244, 114, 182, 0.2)' if not is_dark else 'rgba(0, 0, 0, 0.3)'} !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+}}
+
+div[data-testid="stTabs"] [data-baseweb="tab"] p,
+div[data-testid="stTabs"] [data-baseweb="tab"] span,
+div[data-testid="stTabs"] button[role="tab"] p,
+div[data-testid="stTabs"] button[role="tab"] span,
+div[data-testid="stTabs"] [role="tab"] p,
+div[data-testid="stTabs"] [role="tab"] span {{
+    color: {'#9D174D' if not is_dark else '#FBCFE8'} !important;
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+}}
+
+/* Hiệu ứng Hover: Nổi khối và sáng viền hồng */
+div[data-testid="stTabs"] [data-baseweb="tab"]:hover,
+div[data-testid="stTabs"] button[role="tab"]:hover,
+div[data-testid="stTabs"] [role="tab"]:hover {{
+    background: {'#FBCFE8' if not is_dark else 'rgba(244, 114, 182, 0.28)'} !important;
+    border-color: {'#EC4899' if not is_dark else '#F472B6'} !important;
+    color: {'#831843' if not is_dark else '#FFFFFF'} !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 18px {'rgba(236, 72, 153, 0.3)' if not is_dark else 'rgba(244, 114, 182, 0.35)'} !important;
+}}
+
+div[data-testid="stTabs"] [data-baseweb="tab"]:hover p,
+div[data-testid="stTabs"] [data-baseweb="tab"]:hover span,
+div[data-testid="stTabs"] button[role="tab"]:hover p,
+div[data-testid="stTabs"] button[role="tab"]:hover span,
+div[data-testid="stTabs"] [role="tab"]:hover p,
+div[data-testid="stTabs"] [role="tab"]:hover span {{
+    color: {'#831843' if not is_dark else '#FFFFFF'} !important;
+}}
+
+/* Tab đang kích hoạt: Khối hình chữ nhật màu hồng đậm / hồng đào nổi bật rực rỡ */
+div[data-testid="stTabs"] [aria-selected="true"],
+div[data-testid="stTabs"] button[aria-selected="true"],
+div[data-testid="stTabs"] [role="tab"][aria-selected="true"] {{
+    background: linear-gradient(135deg, #F43F5E 0%, #EC4899 50%, #DB2777 100%) !important;
+    color: #FFFFFF !important;
+    border: 1.5px solid #FDA4AF !important;
+    border-radius: 12px !important;
+    box-shadow: 0 6px 20px rgba(244, 63, 94, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    font-weight: 800 !important;
+    transform: translateY(-1px) scale(1.02) !important;
+}}
+
+div[data-testid="stTabs"] [aria-selected="true"] p,
+div[data-testid="stTabs"] [aria-selected="true"] span,
+div[data-testid="stTabs"] button[aria-selected="true"] p,
+div[data-testid="stTabs"] button[aria-selected="true"] span,
+div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
+div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {{
+    color: #FFFFFF !important;
+    font-weight: 800 !important;
+}}
+
+/* -------------------------------------------------------------
+   2.1 WORKFLOW STEP NAVIGATION DOCK (MODERN TABS/PILLS IN TAB 1)
+   ------------------------------------------------------------- */
+.step-nav-dock {{
+    background: var(--bg-surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-card);
+    border-radius: 18px;
+    padding: 8px 10px;
+    margin-bottom: 22px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+}}
+
+.step-nav-dock div[data-testid="stHorizontalBlock"] {{
+    gap: 8px !important;
+}}
+
+.step-nav-dock div.stButton > button {{
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 0 12px !important;
+    font-size: 13.5px !important;
     font-weight: 600 !important;
-    color: var(--text-muted) !important;
-    border: none !important;
-    transition: var(--transition-smooth) !important;
+    border-radius: 12px !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    border: 1px solid transparent !important;
+    letter-spacing: -0.2px !important;
     white-space: nowrap !important;
 }}
 
-div[data-testid="stTabs"] [data-baseweb="tab"]:hover {{
-    color: var(--text-primary) !important;
+.step-nav-dock div.stButton > button[kind="secondary"],
+.step-nav-dock div.stButton > button[data-testid="baseButton-secondary"] {{
     background: var(--bg-surface-subtle) !important;
-    transform: translateY(-1px) !important;
+    color: var(--text-secondary) !important;
+    border-color: var(--border-subtle) !important;
+    box-shadow: none !important;
 }}
 
-div[data-testid="stTabs"] [aria-selected="true"] {{
-    background: {tab_active_bg} !important;
-    color: {tab_active_text} !important;
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4) !important;
+.step-nav-dock div.stButton > button[kind="secondary"]:hover,
+.step-nav-dock div.stButton > button[data-testid="baseButton-secondary"]:hover {{
+    background: rgba(99, 102, 241, 0.08) !important;
+    color: var(--text-primary) !important;
+    border-color: rgba(99, 102, 241, 0.25) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.15) !important;
+}}
+
+.step-nav-dock div.stButton > button[kind="primary"],
+.step-nav-dock div.stButton > button[data-testid="baseButton-primary"] {{
+    background: linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #06b6d4 100%) !important;
+    color: #ffffff !important;
     font-weight: 700 !important;
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45) !important;
+    transform: translateY(-1px) scale(1.02) !important;
+}}
+
+/* Secondary Buttons General Styling */
+div.stButton > button[kind="secondary"],
+div.stButton > button[data-testid="baseButton-secondary"] {{
+    background: var(--bg-surface) !important;
+    color: var(--text-secondary) !important;
+    border: 1px solid var(--border-card) !important;
+    border-radius: var(--radius-pill) !important;
+    font-weight: 600 !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+    transition: var(--transition-smooth) !important;
+}}
+
+div.stButton > button[kind="secondary"]:hover,
+div.stButton > button[data-testid="baseButton-secondary"]:hover {{
+    background: var(--bg-surface-elevated) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--accent-indigo) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 18px rgba(99, 102, 241, 0.18) !important;
 }}
 
 /* -------------------------------------------------------------
@@ -967,15 +1121,16 @@ div[data-testid="stDownloadButton"] > button[kind="primary"]:hover {{
 /* -------------------------------------------------------------
    10. BUTTONS & FORM INPUTS (FIXED CLIPPING, FULL WIDTH)
    ------------------------------------------------------------- */
-div.stButton > button:first-child {{
+div.stButton > button[kind="primary"],
+div.stButton > button[data-testid="baseButton-primary"] {{
     background: var(--accent-cta-gradient) !important;
     color: #ffffff !important;
     border-radius: var(--radius-pill) !important;
-    padding: 14px 28px !important;
-    min-height: 48px !important;
+    padding: 12px 26px !important;
+    min-height: 46px !important;
     font-weight: 700 !important;
-    font-size: 15px !important;
-    border: none !important;
+    font-size: 14.5px !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
     box-shadow: 0 8px 24px -4px rgba(99, 102, 241, 0.45) !important;
     transition: var(--transition-smooth) !important;
     white-space: normal !important;
@@ -987,12 +1142,14 @@ div.stButton > button:first-child {{
     justify-content: center !important;
 }}
 
-div.stButton > button:first-child:hover {{
+div.stButton > button[kind="primary"]:hover,
+div.stButton > button[data-testid="baseButton-primary"]:hover {{
     box-shadow: 0 12px 32px -4px rgba(99, 102, 241, 0.6) !important;
     transform: translateY(-2px) scale(1.01) !important;
 }}
 
-div.stButton > button:first-child:active {{
+div.stButton > button[kind="primary"]:active,
+div.stButton > button[data-testid="baseButton-primary"]:active {{
     transform: translateY(1px) scale(0.99) !important;
 }}
 

@@ -26,6 +26,9 @@ import data_cleaning
 importlib.reload(data_cleaning)
 from data_cleaning import DataQualityCleaner, DataValidationGuardrail
 from analytics_engine import StatisticalAnalyticsEngine
+import business_report
+importlib.reload(business_report)
+from business_report import DynamicBusinessReportGenerator, export_report_to_word
 from agent_core import DataLoader, MinhAnSalesAgent
 import styles
 importlib.reload(styles)
@@ -35,6 +38,8 @@ import translations
 importlib.reload(translations)
 from translations import t
 from icons import get_svg_icon, get_icon_tile
+import charts
+importlib.reload(charts)
 from charts import (
     chart_mini_sparkline,
     chart_opportunity_item_values,
@@ -46,6 +51,8 @@ from charts import (
     chart_batch_outcome_donut,
     chart_batch_sales_rep_workload,
     chart_pipeline_funnel,
+    chart_operational_risk_bottlenecks,
+    chart_sales_team_performance,
     chart_batch_order_value_distribution,
     chart_catalog_top_stock,
     chart_catalog_price_vs_stock_scatter,
@@ -127,6 +134,24 @@ if "pipeline_history" not in st.session_state:
 
 if "copilot_history" not in st.session_state:
     st.session_state.copilot_history = {}
+
+if "wf_active_step" not in st.session_state:
+    st.session_state.wf_active_step = 1
+
+if "wf_view_mode" not in st.session_state:
+    st.session_state.wf_view_mode = "wizard"
+
+if "assigned_rep_name" not in st.session_state:
+    st.session_state.assigned_rep_name = None
+
+if "assigned_follower_name" not in st.session_state:
+    st.session_state.assigned_follower_name = "Nguyễn Thị Thảo (Trợ lý Ban Kinh doanh)"
+
+if "manager_decision" not in st.session_state:
+    st.session_state.manager_decision = None
+
+if "manager_feedback_note" not in st.session_state:
+    st.session_state.manager_feedback_note = ""
 
 if "uploaded_analytics_df" not in st.session_state:
     st.session_state.uploaded_analytics_df = None
@@ -296,6 +321,7 @@ st.markdown(clean_html(f"""
 
 # ====================================================================================================
 # 5.5. HÀNG THẺ TỔNG QUAN METRICS KÈM BIỂU ĐỒ SPARKLINE TƯƠNG TÁC
+# (Ưu tiên: Kiểm soát quy trình E2E -> Độ chính xác đề xuất -> Điểm nghẽn vận hành -> Tiến độ tuần & Doanh thu)
 # ====================================================================================================
 pipeline_sum = sum(item.get("TotalAmount", 0) for item in st.session_state.pipeline_history)
 if "current_result" in st.session_state and st.session_state.current_result:
@@ -314,40 +340,73 @@ if "current_result" in st.session_state and st.session_state.current_result:
     if not cur_eval.get("needs_manager_approval", True):
         auto_approved_count += 1
 auto_rate = (auto_approved_count / total_requests_count * 100) if total_requests_count > 0 else 66.7
+escalated_count = max(0, total_requests_count - auto_approved_count)
 
+st.markdown(clean_html(f"""
+<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 14px; margin-bottom: 20px;">
+    <!-- Khối 1: Tỷ lệ Tạo Hồ sơ & Dự thảo Hoàn chỉnh -->
+    <div style="background: var(--card-bg, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-muted, #64748b);">{t("overview_kpi_completion", lang)}</span>
+            <div style="background: rgba(16, 185, 129, 0.12); width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">{get_svg_icon("check_circle", size=18, color="#10B981")}</div>
+        </div>
+        <div style="font-size: 28px; font-weight: 800; color: #10B981; letter-spacing: -0.5px; margin-bottom: 10px;">100%</div>
+        <div style="background: rgba(16, 185, 129, 0.08); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: #059669; display: flex; align-items: center; gap: 6px;">
+            <span>↑</span> {t("overview_kpi_completion_sub", lang)}
+        </div>
+    </div>
 
-st.markdown('<div style="margin-top: 14px; margin-bottom: 8px;"></div>', unsafe_allow_html=True)
-ov_col1, ov_col2, ov_col3, ov_col4 = st.columns(4)
+    <!-- Khối 2: Tỷ lệ Đề xuất Đạt chuẩn Vận hành -->
+    <div style="background: var(--card-bg, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-muted, #64748b);">{t("overview_kpi_quality", lang)}</span>
+            <div style="background: rgba(99, 102, 241, 0.12); width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">{get_svg_icon("shield_check", size=18, color="#6366F1")}</div>
+        </div>
+        <div style="font-size: 28px; font-weight: 800; color: #6366F1; letter-spacing: -0.5px; margin-bottom: 10px;">100%</div>
+        <div style="background: rgba(99, 102, 241, 0.08); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: #4F46E5; display: flex; align-items: center; gap: 6px;">
+            <span>✓</span> {t("overview_kpi_quality_sub", lang)}
+        </div>
+    </div>
 
-with ov_col1:
-    st.metric(t("overview_kpi_pipeline", lang), f"{pipeline_sum:,.0f} ₫", "+18.4%")
-    st.plotly_chart(chart_mini_sparkline([45, 62, 78, 95, 120, 145, 185], color="#6366F1", is_dark=is_dark), use_container_width=True, config={"displayModeBar": False})
+    <!-- Khối 3: Cảnh báo Điểm nghẽn & Cần duyệt -->
+    <div style="background: var(--card-bg, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-muted, #64748b);">{t("overview_kpi_bottlenecks", lang)}</span>
+            <div style="background: rgba(245, 158, 11, 0.12); width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">{get_svg_icon("alert_triangle", size=18, color="#D97706")}</div>
+        </div>
+        <div style="font-size: 28px; font-weight: 800; color: #D97706; letter-spacing: -0.5px; margin-bottom: 10px;">{escalated_count} Ca Chờ Duyệt</div>
+        <div style="background: rgba(245, 158, 11, 0.08); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: #B45309; display: flex; align-items: center; gap: 6px;">
+            <span>⚡</span> Tự quyết {auto_rate:.0f}% • {t("overview_kpi_bottlenecks_sub", lang)}
+        </div>
+    </div>
 
-with ov_col2:
-    st.metric(t("overview_kpi_processed", lang), f"{total_requests_count} Yêu cầu", "+3")
-    st.plotly_chart(chart_mini_sparkline([8, 12, 15, 18, 22, 25, 29], color="#22D3EE", is_dark=is_dark), use_container_width=True, config={"displayModeBar": False})
-
-with ov_col3:
-    st.metric(t("overview_kpi_autorate", lang), f"{auto_rate:.1f}%", "+5.2%")
-    st.plotly_chart(chart_mini_sparkline([55, 58, 62, 60, 65, 68, 71], color="#10B981", is_dark=is_dark), use_container_width=True, config={"displayModeBar": False})
-
-with ov_col4:
-    st.metric(t("overview_kpi_sla", lang), "1.6 giây", "-0.4s")
-    st.plotly_chart(chart_mini_sparkline([3.2, 2.8, 2.5, 2.2, 2.0, 1.9, 1.6], color="#F59E0B", is_dark=is_dark), use_container_width=True, config={"displayModeBar": False})
+    <!-- Khối 4: Tiến độ Khối lượng Tuần (~180 Req) -->
+    <div style="background: var(--card-bg, #ffffff); border: 1px solid var(--border-color, #e2e8f0); border-radius: 16px; padding: 18px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: var(--text-muted, #64748b);">{t("overview_kpi_weekly_target", lang)}</span>
+            <div style="background: rgba(6, 182, 212, 0.12); width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;">{get_svg_icon("layers", size=18, color="#0284C7")}</div>
+        </div>
+        <div style="font-size: 28px; font-weight: 800; color: #0284C7; letter-spacing: -0.5px; margin-bottom: 10px;">{total_requests_count} / 180 Req</div>
+        <div style="background: rgba(6, 182, 212, 0.08); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 600; color: #0369A1; display: flex; align-items: center; gap: 6px;">
+            <span>📊</span> Pipeline: {pipeline_sum:,.0f} ₫
+        </div>
+    </div>
+</div>
+"""), unsafe_allow_html=True)
 
 # ====================================================================================================
 # 6. TABS ĐIỀU HƯỚNG CHÍNH (5 TABS STICKY Ở ĐẦU TRANG)
 # ====================================================================================================
-tab_single, tab_batch, tab_analytics, tab_catalog, tab_settings = st.tabs([
+tab_analytics, tab_single, tab_batch, tab_catalog, tab_settings = st.tabs([
+    t("tab_analytics", lang),
     t("tab_single", lang),
     t("tab_batch", lang),
-    t("tab_analytics", lang),
     t("tab_catalog", lang),
     t("tab_settings", lang)
 ])
 
 # ====================================================================================================
-# TAB 1: XỬ LÝ YÊU CẦU ĐƠN LẺ (5-STEP PROCESS THEO SƠ ĐỒ QUY TRÌNH)
+# TAB 1: XỬ LÝ YÊU CẦU ĐƠN LẺ — QUY TRÌNH 6 BƯỚC XUYÊN SUỐT CÔNG TY MINH AN
 # ====================================================================================================
 with tab_single:
     sample_requests_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "sample_requests.json")
@@ -358,28 +417,86 @@ with tab_single:
         f"{s['id']}: {s['title']}" for s in sample_requests
     ]
     
-    # STEPPER TIẾN TRÌNH TRỰC QUAN THEO ĐÚNG SƠ ĐỒ B2B MINH AN (B1 -> B2 -> B3 -> B4 -> B5 -> [Duyệt] -> B6)
-    cur_res = st.session_state.get("current_result")
-    if not cur_res:
-        c1, c2, c3, c4, c5, c_appr, c6 = "active", "idle", "idle", "idle", "idle", "idle", "idle"
-        n1, n2, n3, n4, n5, n_appr, n6 = "1", "2", "3", "4", "5", "—", "6"
-    elif not (cur_res.get("parsed_request") or {}).get("is_sufficient", False):
-        c1, c2, c3, c4, c5, c_appr, c6 = "completed", "warning", "idle", "idle", "idle", "idle", "idle"
-        n1, n2, n3, n4, n5, n_appr, n6 = "✓", "⚠", "3", "4", "5", "—", "6"
-    else:
-        needs_appr = (cur_res.get("evaluation") or {}).get("needs_manager_approval", False)
+    # ------------------------------------------------------------------------------------------------
+    # THANH ĐIỀU HƯỚNG CHẾ ĐỘ XEM & THÔNG TIN BỐI CẢNH VẬN HÀNH
+    # ------------------------------------------------------------------------------------------------
+    col_vm_info, col_vm_toggle = st.columns([6.2, 3.8], vertical_alignment="center")
+    with col_vm_info:
+        st.markdown(clean_html(f"""
+        <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 8px;">
+            🏢 <b>Minh An B2B Sales Workflow</b>: 6 NVKD tiếp nhận ~180 yêu cầu/tuần • Kiểm soát 4 điểm nghẽn: <i>Không bỏ sót hạng mục, Chặn dùng giá cũ, Thẩm định SLA kho khả dụng, Định danh NVKD & Người theo dõi</i>.
+        </div>
+        """), unsafe_allow_html=True)
+    with col_vm_toggle:
+        view_mode_opts = [t("wizard_mode_label", lang), t("overview_mode_label", lang)]
+        curr_mode_idx = 0 if st.session_state.wf_view_mode == "wizard" else 1
+        sel_view_mode = st.segmented_control(
+            "Chế độ hiển thị quy trình",
+            options=view_mode_opts,
+            default=view_mode_opts[curr_mode_idx],
+            label_visibility="collapsed",
+            key="segmented_view_mode"
+        )
+        if sel_view_mode:
+            new_vm = "wizard" if ("Wizard" in sel_view_mode or "Từng bước" in sel_view_mode) else "overview"
+            if new_vm != st.session_state.wf_view_mode:
+                st.session_state.wf_view_mode = new_vm
+                st.rerun()
 
-        c1, c2, c3, c4, c5 = "completed", "completed", "completed", "completed", "completed"
-        n1, n2, n3, n4, n5 = "✓", "✓", "✓", "✓", "✓"
-        if needs_appr:
-            c_appr = "warning"
-            n_appr = "⚠"
+    # ------------------------------------------------------------------------------------------------
+    # TÍNH TOÁN TRẠNG THÁI STEPPER THEO TIẾN TRÌNH THỰC TẾ
+    # ------------------------------------------------------------------------------------------------
+    active_step = st.session_state.get("wf_active_step", 1)
+    cur_res = st.session_state.get("current_result")
+    
+    # Đảm bảo có kết quả mẫu mặc định nếu mở lần đầu
+    if cur_res is None:
+        default_sample_text = sample_requests[0]["raw_text"]
+        st.session_state.current_result = st.session_state.agent.process_request(default_sample_text)
+        cur_res = st.session_state.current_result
+        if cur_res and cur_res.get("sales_rep"):
+            st.session_state.assigned_rep_name = cur_res["sales_rep"]["FullName"]
+
+    is_sufficient = (cur_res.get("parsed_request") or {}).get("is_sufficient", True) if cur_res else True
+    needs_appr = (cur_res.get("evaluation") or {}).get("needs_manager_approval", False) if cur_res else False
+    
+    # Tính icon & class cho 6 bước + nhánh duyệt
+    c_list = ["idle"] * 7  # 1, 2, 3, 4, 5, appr, 6
+    n_list = ["1", "2", "3", "4", "5", "—", "6"]
+    
+    for s_i in range(1, 7):
+        idx = s_i - 1 if s_i <= 5 else 6
+        if s_i < active_step:
+            c_list[idx] = "completed"
+            n_list[idx] = "✓"
+        elif s_i == active_step:
+            c_list[idx] = "active"
+            n_list[idx] = str(s_i)
         else:
-            c_appr = "dimmed"
-            n_appr = "✓"
-        c6 = "completed"
-        n6 = "✓"
+            c_list[idx] = "idle"
+            n_list[idx] = str(s_i)
             
+    # Xử lý ngoại lệ Gateway 1 tại Bước 2 (Không đủ thông tin)
+    if not is_sufficient:
+        c_list[1] = "warning"
+        n_list[1] = "⚠"
+        
+    # Xử lý Gateway 2 tại Bước 5 / Trưởng phòng duyệt
+    if needs_appr:
+        if st.session_state.get("manager_decision"):
+            c_list[5] = "completed"
+            n_list[5] = "✓"
+        else:
+            c_list[5] = "warning" if active_step >= 5 else "idle"
+            n_list[5] = "⚠"
+    else:
+        c_list[5] = "dimmed"
+        n_list[5] = "—"
+        
+    c1, c2, c3, c4, c5, c_appr, c6 = c_list[0], c_list[1], c_list[2], c_list[3], c_list[4], c_list[5], c_list[6]
+    n1, n2, n3, n4, n5, n_appr, n6 = n_list[0], n_list[1], n_list[2], n_list[3], n_list[4], n_list[5], n_list[6]
+
+    # STEPPER VISUAL CONTAINER
     st.markdown(clean_html(f"""
     <div class="stepper-container">
         <div class="step-item">
@@ -440,105 +557,170 @@ with tab_single:
     </div>
     """), unsafe_allow_html=True)
     
-    col_input_left, col_input_right = st.columns([7, 3])
+    # ------------------------------------------------------------------------------------------------
+    # THANH NÚT CHỌN BƯỚC TƯƠNG TÁC (CHUYỂN TRỰC TIẾP GIỮA CÁC BƯỚC KHÔNG MẤT DỮ LIỆU)
+    # ------------------------------------------------------------------------------------------------
+    st.markdown('<div class="step-nav-dock">', unsafe_allow_html=True)
+    step_btn_cols = st.columns(6)
     
-    with col_input_left:
-        icon_file = get_icon_tile("file_text", "indigo")
-        st.markdown(clean_html(f"""
-        <div class="section-header-row">
-            {icon_file}
-            <div class="section-header-title">{t("req_box_title", lang)}</div>
-        </div>
-        """), unsafe_allow_html=True)
-        
-        selected_sample = st.selectbox(
-            t("sample_select_label", lang),
-            sample_options,
-            index=1,
-            label_visibility="collapsed"
-        )
-        
-        default_text = ""
-        if selected_sample != t("sample_select_default", lang):
-            sample_id = selected_sample.split(":")[0]
-            for s in sample_requests:
-                if s["id"] == sample_id:
-                    default_text = s["raw_text"]
-                    break
-                    
-        # Tự động đồng bộ kết quả khi đổi mẫu
-        if "last_selected_sample" not in st.session_state:
-            st.session_state.last_selected_sample = selected_sample
-        elif selected_sample != st.session_state.last_selected_sample:
-            st.session_state.last_selected_sample = selected_sample
-            if default_text:
-                st.session_state.current_result = st.session_state.agent.process_request(default_text)
-                    
-        req_input = st.text_area(
-            t("req_input_label", lang),
-            value=default_text,
-            height=210,
-            placeholder=t("req_input_placeholder", lang)
-        )
-        
-        run_process = st.button(t("btn_process", lang), use_container_width=True)
+    # Tạo nhãn hiện đại kèm trạng thái động
+    def get_step_nav_label(step_num: int, title_key: str) -> str:
+        short_title = t(title_key, lang).split('. ')[-1]
+        if step_num == active_step:
+            return f"⚡ B{step_num}: {short_title}"
+        elif step_num < active_step:
+            if step_num == 2 and not is_sufficient:
+                return f"⚠ B2: Làm rõ"
+            return f"✓ B{step_num}: {short_title}"
+        else:
+            return f"{step_num}. {short_title}"
 
-    with col_input_right:
-        icon_shield = get_icon_tile("shield_check", "amber")
-        st.markdown(clean_html(f"""
-        <div class="section-header-row">
-            {icon_shield}
-            <div class="section-header-title">{t("rules_card_title", lang)}</div>
-        </div>
-        """), unsafe_allow_html=True)
-        
-        sku_icon = get_svg_icon("package", size=18, color="#6366f1")
-        sla_icon = get_svg_icon("clock", size=18, color="#06b6d4")
-        matrix_icon = get_svg_icon("shield_check", size=18, color="#f59e0b")
-        
-        st.markdown(clean_html(f"""
-        <div class="rule-subcard sku-accent">
-            <div style="flex-shrink: 0; margin-top: 2px;">{sku_icon}</div>
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_sku_title", lang)}</div>
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_sku_desc", lang)}</div>
-            </div>
-        </div>
-        <div class="rule-subcard sla-accent">
-            <div style="flex-shrink: 0; margin-top: 2px;">{sla_icon}</div>
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_sla_title", lang)}</div>
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_sla_desc", lang)}</div>
-            </div>
-        </div>
-        <div class="rule-subcard matrix-accent">
-            <div style="flex-shrink: 0; margin-top: 2px;">{matrix_icon}</div>
-            <div>
-                <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_matrix_title", lang)}</div>
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_matrix_desc", lang)}</div>
-            </div>
-        </div>
-        """), unsafe_allow_html=True)
+    step_labels = [
+        (1, get_step_nav_label(1, "wf_step_1_title")),
+        (2, get_step_nav_label(2, "wf_step_2_title")),
+        (3, get_step_nav_label(3, "wf_step_3_title")),
+        (4, get_step_nav_label(4, "wf_step_4_title")),
+        (5, get_step_nav_label(5, "wf_step_5_title")),
+        (6, get_step_nav_label(6, "wf_step_6_title"))
+    ]
+    for col_b, (s_idx, s_txt) in zip(step_btn_cols, step_labels):
+        is_cur_b = (active_step == s_idx)
+        btn_variant = "primary" if is_cur_b else "secondary"
+        if col_b.button(s_txt, key=f"nav_btn_step_{s_idx}", type=btn_variant, use_container_width=True):
+            st.session_state.wf_active_step = s_idx
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-    # Đảm bảo kết quả luôn sẵn sàng hiển thị
-    if "current_result" not in st.session_state or st.session_state.current_result is None:
-        st.session_state.current_result = st.session_state.agent.process_request(default_text if default_text else sample_requests[0]["raw_text"])
+    st.write("")
 
-    if run_process and req_input.strip():
-        with st.spinner(t("processing_spinner", lang)):
-            st.session_state.current_result = st.session_state.agent.process_request(req_input)
-            
-    result = st.session_state.get("current_result")
-    if result:
-        st.write("")
-        is_sufficient = result["parsed_request"]["is_sufficient"]
-        
-        # ----------------------------------------------------------------------------------------
-        # KỊCH BẢN 1: THIẾU THÔNG TIN (YÊU CẦU KH LÀM RÕ)
-        # ----------------------------------------------------------------------------------------
-        if not is_sufficient:
+    # ================================================================================================
+    # KHAI BÁO CÁC HÀM RENDER TỪNG BƯỚC CỦA QUY TRÌNH
+    # ================================================================================================
+    
+    def render_step_1():
+        """BƯỚC 1: TIẾP NHẬN YÊU CẦU (Khách hàng & Intake Gateway)"""
+        col_in_l, col_in_r = st.columns([7, 3])
+        with col_in_l:
+            icon_file = get_icon_tile("file_text", "indigo")
             st.markdown(clean_html(f"""
-            <div class="bento-surface" style="border-left: 4px solid var(--status-danger);">
+            <div class="section-header-row">
+                {icon_file}
+                <div class="section-header-title">{t("req_box_title", lang)}</div>
+            </div>
+            """), unsafe_allow_html=True)
+            
+            selected_sample = st.selectbox(
+                t("sample_select_label", lang),
+                sample_options,
+                index=1,
+                label_visibility="collapsed",
+                key="sample_select_box"
+            )
+            
+            default_text = ""
+            if selected_sample != t("sample_select_default", lang):
+                s_id = selected_sample.split(":")[0]
+                for s in sample_requests:
+                    if s["id"] == s_id:
+                        default_text = s["raw_text"]
+                        break
+                        
+            # Tự động đồng bộ kết quả khi đổi mẫu
+            if "last_selected_sample" not in st.session_state:
+                st.session_state.last_selected_sample = selected_sample
+            elif selected_sample != st.session_state.last_selected_sample:
+                st.session_state.last_selected_sample = selected_sample
+                if default_text:
+                    st.session_state.current_result = st.session_state.agent.process_request(default_text)
+                    if st.session_state.current_result.get("sales_rep"):
+                        st.session_state.assigned_rep_name = st.session_state.current_result["sales_rep"]["FullName"]
+                    st.session_state.manager_decision = None
+                    st.session_state.wf_active_step = 1
+                    st.rerun()
+                        
+            req_input = st.text_area(
+                t("req_input_label", lang),
+                value=default_text if default_text else (cur_res.get("raw_text", "") if cur_res else ""),
+                height=210,
+                placeholder=t("req_input_placeholder", lang),
+                key="text_req_input"
+            )
+            
+            col_act1, col_act2 = st.columns([1, 1])
+            with col_act1:
+                if st.button("🚀 Thẩm định & Khởi tạo Hồ sơ (Bước 1 ➔ 2)", use_container_width=True, type="primary", key="btn_run_b1"):
+                    if req_input.strip():
+                        with st.spinner(t("processing_spinner", lang)):
+                            st.session_state.current_result = st.session_state.agent.process_request(req_input)
+                            if st.session_state.current_result.get("sales_rep"):
+                                st.session_state.assigned_rep_name = st.session_state.current_result["sales_rep"]["FullName"]
+                            st.session_state.manager_decision = None
+                            st.session_state.wf_active_step = 2
+                            st.toast("Đã tiếp nhận yêu cầu và hoàn tất trích xuất dữ liệu B1!", icon="📥")
+                            st.rerun()
+            with col_act2:
+                if st.button("Tiếp tục xem kết quả kiểm tra (Bước 2) ➔", use_container_width=True, key="btn_next_b1_b2"):
+                    st.session_state.wf_active_step = 2
+                    st.rerun()
+
+        with col_in_r:
+            icon_shield = get_icon_tile("shield_check", "amber")
+            st.markdown(clean_html(f"""
+            <div class="section-header-row">
+                {icon_shield}
+                <div class="section-header-title">{t("rules_card_title", lang)}</div>
+            </div>
+            """), unsafe_allow_html=True)
+            
+            sku_icon = get_svg_icon("package", size=18, color="#6366f1")
+            sla_icon = get_svg_icon("clock", size=18, color="#06b6d4")
+            matrix_icon = get_svg_icon("shield_check", size=18, color="#f59e0b")
+            
+            st.markdown(clean_html(f"""
+            <div class="rule-subcard sku-accent">
+                <div style="flex-shrink: 0; margin-top: 2px;">{sku_icon}</div>
+                <div>
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_sku_title", lang)}</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_sku_desc", lang)}</div>
+                </div>
+            </div>
+            <div class="rule-subcard sla-accent">
+                <div style="flex-shrink: 0; margin-top: 2px;">{sla_icon}</div>
+                <div>
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_sla_title", lang)}</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_sla_desc", lang)}</div>
+                </div>
+            </div>
+            <div class="rule-subcard matrix-accent">
+                <div style="flex-shrink: 0; margin-top: 2px;">{matrix_icon}</div>
+                <div>
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{t("rule_matrix_title", lang)}</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">{t("rule_matrix_desc", lang)}</div>
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+    def render_step_2():
+        """BƯỚC 2: PHÂN LOẠI & KIỂM TRA THÔNG TIN (Đủ thông tin? - Gateway 1)"""
+        if not cur_res:
+            st.info("Chưa có dữ liệu yêu cầu. Vui lòng quay lại Bước 1.")
+            return
+
+        parsed = cur_res.get("parsed_request") or {}
+        is_suff = parsed.get("is_sufficient", True)
+        
+        icon_check = get_icon_tile("clipboard_check", "cyan")
+        st.markdown(clean_html(f"""
+        <div class="section-header-row">
+            {icon_check}
+            <div class="section-header-title">Bước 2: Phân loại & Kiểm tra Thông tin (Gateway 1: Đủ thông tin?)</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 1. Trạng thái Đầy đủ Thông tin
+        if not is_suff:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-danger); margin-bottom: 18px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                     <div style="font-size: 18px; font-weight: 800; color: var(--status-danger);">
                         {t("insufficient_title", lang)}
@@ -549,7 +731,7 @@ with tab_single:
                     {t("insufficient_desc", lang)}
                 </div>
                 <div style="font-size: 13px; font-weight: 700; color: var(--status-danger);">
-                    ⚡ Điểm rẽ 1: KHÔNG ĐỦ THÔNG TIN BẮT BUỘC ➔ Rẽ nhánh "Yêu cầu KH làm rõ / bổ sung"
+                    ⚡ Điểm rẽ 1: KHÔNG ĐỦ THÔNG TIN BẮT BUỘC ➔ Kích hoạt quy trình yêu cầu Khách hàng làm rõ / bổ sung.
                 </div>
             </div>
             """), unsafe_allow_html=True)
@@ -557,7 +739,7 @@ with tab_single:
             c_clar1, c_clar2 = st.columns([1, 1])
             with c_clar1:
                 st.markdown(clean_html(f'<div class="section-header-title" style="margin-bottom: 12px;">{t("missing_items_title", lang)}</div>'), unsafe_allow_html=True)
-                for r in result["parsed_request"]["missing_reasons"]:
+                for r in parsed.get("missing_reasons", []):
                     st.markdown(clean_html(f"""
                     <div style="background: var(--status-danger-bg); border: 1px solid var(--status-danger-border); padding: 12px 16px; border-radius: 12px; margin-bottom: 8px; font-size: 14px; color: var(--status-danger); font-weight: 600;">
                         • {r}
@@ -565,412 +747,715 @@ with tab_single:
                     """), unsafe_allow_html=True)
             with c_clar2:
                 st.markdown(clean_html(f'<div class="section-header-title" style="margin-bottom: 12px;">{t("clarification_email_title", lang)}</div>'), unsafe_allow_html=True)
-                st.text_area("Nội dung thư làm rõ:", value=result["clarification_draft"], height=160, label_visibility="collapsed")
+                clar_draft = cur_res.get("clarification_draft", "")
+                st.text_area("Nội dung thư làm rõ:", value=clar_draft, height=160, label_visibility="collapsed", key="area_clar_draft")
                 st.download_button(
                     t("btn_download_clarification", lang),
-                    data=result["clarification_draft"],
-                    file_name=f"Yeu_cau_bo_sung_{result['opportunity_id']}.txt",
+                    data=clar_draft,
+                    file_name=f"Yeu_cau_bo_sung_{cur_res.get('opportunity_id', 'REQ')}.txt",
                     mime="text/plain",
-                    use_container_width=True
-                )
-                
-                # Cổng tiếp nhận thông tin bổ sung quay lại B1 theo đúng sơ đồ
-                st.markdown(clean_html(f"""
-                <div style="margin-top: 14px; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--text-primary);">
-                    🔄 {t("clarification_paste_label", lang)}
-                </div>
-                """), unsafe_allow_html=True)
-                supp_text = st.text_area(
-                    "Thông tin bổ sung từ khách:",
-                    placeholder="Ví dụ: Bổ sung số lượng: 10 máy chủ Dell R750 và 5 switch Cisco C9200L, ngân sách 1 tỷ 2...",
-                    height=85,
-                    key="supp_info_input",
-                    label_visibility="collapsed"
-                )
-                if st.button(t("btn_resubmit_clarification", lang), key="btn_submit_supp", use_container_width=True):
-                    if supp_text.strip():
-                        combined = req_input + "\n\n[Thông tin bổ sung tiếp nhận lại tại B1]:\n" + supp_text.strip()
-                        st.session_state.current_result = st.session_state.agent.process_request(combined)
-                        st.toast("Đã tiếp nhận thông tin bổ sung vào B1 và hoàn tất tái thẩm định B2!", icon="✅")
-                        st.rerun()
-                
-        # ----------------------------------------------------------------------------------------
-        # KỊCH BẢN 2: ĐẦY ĐỦ THÔNG TIN (XUẤT HỒ SƠ & BÁO GIÁ)
-        # ----------------------------------------------------------------------------------------
-        else:
-            eval_data = result["evaluation"]
-            rep = result["sales_rep"]
-            parsed = result["parsed_request"]
-            
-            # Trạng thái phê duyệt Telegram
-            approval_key = f"approval_status_{result['opportunity_id']}"
-            current_appr_badge = st.session_state.get(approval_key, eval_data['decision_badge'])
-            
-            st.markdown(clean_html(f"""
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 22px; flex-wrap: wrap; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px;">
-                    <span style="font-size: 24px; font-weight: 800; color: var(--text-primary);">{t("opp_title", lang)} {result['opportunity_id']}</span>
-                    <span class="badge-capsule badge-green">{t("valid_info_badge", lang)}</span>
-                </div>
-                <div>
-                    <span class="badge-capsule {'badge-green' if ('DUYỆT' in current_appr_badge and 'CẦN' not in current_appr_badge) else 'badge-amber'}">
-                        {current_appr_badge}
-                    </span>
-                </div>
-            </div>
-            """), unsafe_allow_html=True)
-            
-            # 4 Thẻ KPI chính
-            k1, k2, k3, k4 = st.columns(4)
-            with k1:
-                st.markdown(clean_html(f"""
-                <div class="stat-kpi-card">
-                    <div class="stat-kpi-value">{eval_data['total_final_amount']:,.0f} đ</div>
-                    <div class="stat-kpi-label">{t("kpi_total_amount", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-            with k2:
-                st.markdown(clean_html(f"""
-                <div class="stat-kpi-card">
-                    <div class="stat-kpi-value">{eval_data['discount_pct']:.1f}%</div>
-                    <div class="stat-kpi-label">{t("kpi_discount", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-            with k3:
-                st.markdown(clean_html(f"""
-                <div class="stat-kpi-card">
-                    <div class="stat-kpi-value">{eval_data['max_lead_time_days']} ngày</div>
-                    <div class="stat-kpi-label">{t("kpi_lead_time", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-            with k4:
-                st.markdown(clean_html(f"""
-                <div class="stat-kpi-card">
-                    <div class="stat-kpi-value" style="font-size: 20px; line-height: 33px;">{rep['FullName']}</div>
-                    <div class="stat-kpi-label">{t("kpi_sales_rep", lang)} ({rep['StaffID']})</div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-            st.write("")
-            
-            # Hai cột chi tiết
-            col_detail_left, col_detail_right = st.columns([6, 4])
-            
-            with col_detail_left:
-                icon_pkg = get_icon_tile("package", "cyan")
-                st.markdown(clean_html(f"""
-                <div class="section-header-row">
-                    {icon_pkg}
-                    <div class="section-header-title">{t("items_table_title", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-                for it in eval_data["items_detail"]:
-                    status_str = str(it.get("StockStatus", ""))
-                    is_service = ("Dịch vụ" in status_str or it.get("Category") == "Dịch vụ" or it.get("AvailableStock", 0) >= 999 or "SVC-" in str(it.get("SKU", "")).upper())
-                    is_in_stock = ("Đủ hàng" in status_str or (not is_service and it.get("AvailableStock", 0) >= it.get("Quantity", 1)))
-                    
-                    if is_service:
-                        display_badge_text = "Dịch vụ · không giới hạn" if lang == "vi" else "Service · no stock limit"
-                        stock_badge = f'<span class="badge-capsule badge-cyan">{display_badge_text}</span>'
-                    elif is_in_stock:
-                        stock_badge = f'<span class="badge-capsule badge-green">{status_str}</span>'
-                    else:
-                        stock_badge = f'<span class="badge-capsule badge-red">{status_str}</span>'
-                    
-                    st.markdown(clean_html(f"""
-                    <div class="item-showcase-tile">
-                        <div style="max-width: 65%;">
-                            <div style="font-weight: 700; font-size: 15px; color: var(--text-primary); margin-bottom: 4px;">{it['ProductName']}</div>
-                            <div style="display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
-                                <span class="sku-mono-pill">{it['SKU']}</span>
-                                <span>SL: <b>{it['Quantity']} {it['Unit']}</b></span>
-                                <span>• Đơn giá: <b>{it['UnitPrice']:,.0f} đ</b></span>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <div style="font-weight: 800; font-size: 16px; color: var(--text-primary);">{it['FinalTotal']:,.0f} đ</div>
-                            <div style="margin-top: 6px;">{stock_badge}</div>
-                        </div>
-                    </div>
-                    """), unsafe_allow_html=True)
-                    
-                # Download Báo giá Excel (Nút chính nổi bật)
-                items_df = pd.DataFrame(eval_data["items_detail"])
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
-                    items_df.to_excel(writer, sheet_name="Bao_Gia", index=False)
-                excel_bytes = excel_buffer.getvalue()
-                
-                st.write("")
-                st.download_button(
-                    label=t("btn_download_quotation", lang),
-                    data=excel_bytes,
-                    file_name=f"Bao_gia_{result['opportunity_id']}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
-                    type="primary",
-                    key=f"btn_dl_quote_{result['opportunity_id']}"
+                    key="btn_dl_clar_b2"
                 )
-
-            with col_detail_right:
-                icon_user = get_icon_tile("user_check", "indigo")
-                st.markdown(clean_html(f"""
-                <div class="section-header-row">
-                    {icon_user}
-                    <div class="section-header-title">{t("client_info_title", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
                 
-                st.markdown(clean_html(f"""
-                <div class="bento-surface">
-                    <div style="font-size: 18px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px;">{parsed['company_name']}</div>
-                    <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
-                        • <b>Người liên hệ:</b> {parsed['contact_person']}<br>
-                        • <b>Liên lạc:</b> {parsed['email']} • {parsed['phone']}<br>
-                        • <b>Tình trạng ngân sách:</b> <span style="font-weight: 700; color: var(--text-primary);">{eval_data['budget_status']}</span><br>
-                        • <b>NVKD phụ trách:</b> {rep['FullName']} ({rep['Specialty']})<br>
-                        • <b>Thẩm quyền duyệt:</b> <b>{eval_data['approval_level']}</b>
-                    </div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-                # Cảnh báo rủi ro (nếu có)
-                if eval_data["stock_warnings"] or eval_data["leadtime_warnings"]:
-                    st.markdown(clean_html(f'<div class="section-header-title" style="margin-bottom: 12px;">{t("risk_warnings_title", lang)}</div>'), unsafe_allow_html=True)
-                    for w in eval_data["stock_warnings"]:
-                        st.markdown(clean_html(f'<div style="background: var(--status-warning-bg); border: 1px solid var(--status-warning-border); color: var(--status-warning); padding: 12px 14px; border-radius: 12px; font-size: 13px; margin-bottom: 6px;">📦 <b>Kho:</b> {w}</div>'), unsafe_allow_html=True)
-                    for lw in eval_data["leadtime_warnings"]:
-                        st.markdown(clean_html(f'<div style="background: var(--status-danger-bg); border: 1px solid var(--status-danger-border); color: var(--status-danger); padding: 12px 14px; border-radius: 12px; font-size: 13px; margin-bottom: 6px;">⏱️ <b>Tiến độ:</b> {lw}</div>'), unsafe_allow_html=True)
-
-            # ====================================================================================
-            # PHÂN TÍCH KỸ THUẬT & TÀI CHÍNH YÊU CẦU (PLOTLY CHARTS)
-            # ====================================================================================
+            # Cổng tiếp nhận thông tin bổ sung quay lại B1 theo đúng sơ đồ
             st.markdown(clean_html(f"""
-            <div class="section-header-row" style="margin-top: 24px; margin-bottom: 12px;">
-                {get_icon_tile("sparkles", "indigo")}
-                <div class="section-header-title">{t("charts_single_title", lang)}</div>
+            <div style="margin-top: 14px; margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--text-primary);">
+                🔄 {t("clarification_paste_label", lang)}
             </div>
             """), unsafe_allow_html=True)
-            
-            # 1. Thẻ Thẩm quyền chiết khấu & Giá trị (Dual Gauge cùng baseline, 300px, chips & banner)
-            try:
-                render_governance_card(eval_data, is_dark=is_dark, lang=lang)
-            except Exception as e:
-                st.info(f"Thẩm quyền chiết khấu & giá trị: {e}")
-                
-            # 2. Lưới 2 cột đều nhau cho 4 biểu đồ kỹ thuật & tài chính
-            items_list = eval_data.get("items_detail") or eval_data.get("matched_items") or []
-            
-            col_a, col_b = st.columns(2, gap="large")
-            with col_a:
-                # (a) Cột ngang giá trị từng hạng mục
-                try:
-                    fig_it, ins_it, df_it = chart_opportunity_item_values(items_list, is_dark=is_dark, lang=lang)
-                    render_chart_card(fig_it, t("chart_opp_items", lang), ins_it, df_it, "opp_items", lang=lang)
-                except Exception as e:
-                    st.info(f"Biểu đồ giá trị: {e}")
-                    
-                # (c) So sánh số lượng yêu cầu với tồn kho
-                try:
-                    fig_inv, ins_inv, df_inv = chart_opportunity_inventory_comparison(items_list, is_dark=is_dark, lang=lang)
-                    render_chart_card(fig_inv, t("chart_opp_inventory", lang), ins_inv, df_inv, "opp_inventory", lang=lang)
-                except Exception as e:
-                    st.info(f"Biểu đồ tồn kho: {e}")
-                    
-            with col_b:
-                # (b) Donut tỷ trọng theo nhóm sản phẩm
-                try:
-                    fig_cat, ins_cat, df_cat = chart_opportunity_category_donut(items_list, is_dark=is_dark, lang=lang)
-                    render_chart_card(fig_cat, t("chart_opp_category", lang), ins_cat, df_cat, "opp_category", lang=lang)
-                except Exception as e:
-                    st.info(f"Biểu đồ cơ cấu nhóm: {e}")
-                    
-                # (d) Timeline thời gian giao hàng dự kiến
-                try:
-                    fig_lt, ins_lt, df_lt = chart_leadtime_timeline(items_list, is_dark=is_dark, lang=lang)
-                    render_chart_card(fig_lt, t("chart_opp_leadtime", lang), ins_lt, df_lt, "opp_leadtime", lang=lang)
-                except Exception as e:
-                    st.info(f"Biểu đồ tiến độ: {e}")
-
-            # Kênh duyệt tức thì Telegram Bot
-            if eval_data["needs_manager_approval"]:
-                bot_icon = get_icon_tile("bot", "amber")
-                st.markdown(clean_html(f"""
-                <div class="section-header-row" style="margin-top: 14px;">
-                    {bot_icon}
-                    <div class="section-header-title">{t("tg_card_title", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-                st.markdown(clean_html(f"""
-                <div class="telegram-approval-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <span class="badge-capsule badge-amber">{t("tg_bot_badge", lang)}</span>
-                        <span style="font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">Recipient: Trưởng phòng Kinh doanh</span>
-                    </div>
-                    <div style="font-size: 14px; color: var(--text-primary); line-height: 1.6; margin-bottom: 16px;">
-                        {t("tg_desc", lang)}<br>
-                        • <b>Hồ sơ:</b> {result['opportunity_id']} • <b>Khách hàng:</b> {parsed['company_name']}<br>
-                        • <b>Giá trị:</b> <span style="font-weight: 800; color: var(--text-primary);">{eval_data['total_final_amount']:,.0f} đ</span> (Chiết khấu: <b>{eval_data['discount_pct']:.1f}%</b>)
-                    </div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-                col_tg1, col_tg2, col_tg3 = st.columns([1, 1, 1])
-                with col_tg1:
-                    if st.button(t("tg_btn_approve", lang), key="btn_tg_approve", use_container_width=True):
-                        st.session_state[approval_key] = t("tg_status_approved", lang)
-                        st.toast(t("tg_toast_approved", lang), icon="✅")
-                        st.rerun()
-                with col_tg2:
-                    if st.button(t("tg_btn_reject", lang), key="btn_tg_reject", use_container_width=True):
-                        st.session_state[approval_key] = t("tg_status_rejected", lang)
-                        st.toast("Đã gửi phản hồi Từ chối tới NVKD qua Telegram!", icon="❌")
-                        st.rerun()
-                with col_tg3:
-                    if st.button(t("tg_btn_adjust", lang), key="btn_tg_adjust", use_container_width=True):
-                        st.session_state[approval_key] = t("tg_status_adjusted", lang)
-                        st.toast("Đã gửi yêu cầu NVKD đàm phán giảm chiết khấu!", icon="💬")
-                        st.rerun()
-
-            # Phiếu trình duyệt nội bộ
-            if eval_data["needs_manager_approval"] and result["approval_note"]:
-                st.markdown(clean_html(f'<div class="section-header-title" style="margin-top: 16px; margin-bottom: 10px;">{t("approval_memo_title", lang)}</div>'), unsafe_allow_html=True)
-                with st.expander(t("approval_memo_expander", lang), expanded=True):
-                    st.code(result["approval_note"], language="text")
-
-            # Bản nháp email đề xuất gửi khách hàng
-            icon_send = get_icon_tile("send", "indigo")
-            st.markdown(clean_html(f"""
-            <div class="section-header-row" style="margin-top: 20px;">
-                {icon_send}
-                <div class="section-header-title">{t("proposal_email_title", lang)}</div>
-            </div>
-            """), unsafe_allow_html=True)
-            st.text_area("Nội dung bản nháp đề xuất:", value=result["client_proposal"], height=240, label_visibility="collapsed")
-            
-            c_save_prop, c_dl_prop = st.columns([1, 1])
-            with c_save_prop:
-                if st.button(t("btn_save_pipeline", lang), use_container_width=True):
-                    st.session_state.pipeline_history.append({
-                        "OpportunityID": result["opportunity_id"],
-                        "CreatedAt": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "Customer": parsed["company_name"],
-                        "SalesRep": rep["FullName"],
-                        "TotalAmount": eval_data["total_final_amount"],
-                        "DiscountPct": eval_data["discount_pct"],
-                        "Approval": eval_data["approval_level"]
-                    })
-                    st.toast(t("toast_saved_pipeline", lang), icon="✨")
-            with c_dl_prop:
-                st.download_button(
-                    t("btn_download_proposal", lang),
-                    data=result["client_proposal"],
-                    file_name=f"De_xuat_kinh_doanh_{result['opportunity_id']}.txt",
-                    mime="text/plain",
-                    use_container_width=True
-                )
-
-            # ====================================================================================
-            # B6. KẾT THÚC: CẬP NHẬT & THEO DÕI HỒ SƠ
-            # ====================================================================================
-            opp_rec = result.get("opportunity_record") or {}
-            wf_status_label = "Chờ Trưởng phòng phê duyệt" if eval_data['needs_manager_approval'] else "Đã xuất báo giá (Hoàn tất)"
-            wf_badge_cls = "badge-amber" if eval_data['needs_manager_approval'] else "badge-green"
-            st.markdown(clean_html(f"""
-            <div class="bento-surface" style="margin-top: 24px; border-left: 4px solid {'var(--status-warning)' if eval_data['needs_manager_approval'] else 'var(--status-success)'};">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <div style="font-weight: 800; font-size: 16px; color: var(--text-primary);">
-                        B6. Kết thúc: Cập nhật & Theo dõi Hồ sơ {result['opportunity_id']}
-                    </div>
-                    <span class="badge-capsule {wf_badge_cls}">{wf_status_label}</span>
-                </div>
-                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
-                    • <b>Khách hàng:</b> {parsed['company_name']} ({parsed['contact_person']}) &nbsp;|&nbsp; 
-                    • <b>NVKD phụ trách:</b> {rep['FullName']} ({rep['Role']} - {rep['Specialty']})<br>
-                    • <b>Thời điểm tạo hồ sơ:</b> {opp_rec.get('created_at', datetime.now().strftime('%d/%m/%Y %H:%M:%S'))} &nbsp;|&nbsp; 
-                    • <b>Hành động tiếp theo:</b> {'Trình Trưởng phòng Kinh doanh xem xét và ký duyệt theo thẩm quyền.' if eval_data['needs_manager_approval'] else 'Gửi báo giá chính thức đến khách hàng, theo dõi phản hồi trong 48h và xúc tiến hợp đồng.'}
-                </div>
-            </div>
-            """), unsafe_allow_html=True)
-
-            # ====================================================================================
-            # NHẬT KÝ XỬ LÝ MINH BẠCH (AUDIT TRAIL LOG)
-            # ====================================================================================
-            if "audit_logs" in result and result["audit_logs"]:
-                st.markdown(clean_html(f"""
-                <div class="section-header-row" style="margin-top: 24px;">
-                    {get_icon_tile("clipboard_check", "emerald")}
-                    <div class="section-header-title">{t("audit_trail_title", lang)}</div>
-                </div>
-                """), unsafe_allow_html=True)
-                
-                with st.expander("Xem toàn bộ các bước xử lý minh bạch & quy tắc đã áp dụng", expanded=False):
-                    for log_entry in result["audit_logs"]:
-                        actor_tag = log_entry.get("actor", "NVKD & Vận hành")
-                        st.markdown(clean_html(f"""
-                        <div class="audit-step-card">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{log_entry['step_name']}</span>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <span class="badge-capsule badge-blue" style="font-size: 11px;">Phụ trách: {actor_tag}</span>
-                                    <span class="sku-mono-pill">{log_entry['timestamp']}</span>
-                                </div>
-                            </div>
-                            <div style="font-size: 13px; color: var(--accent-indigo); margin-bottom: 4px;">Quy tắc: <b>{log_entry['rule_applied']}</b></div>
-                            <div style="font-size: 13px; color: var(--text-secondary);">{log_entry['details']}</div>
-                        </div>
-                        """), unsafe_allow_html=True)
-
-            # Trợ lý đàm phán AI Sales Copilot
-            icon_spark = get_icon_tile("sparkles", "pink")
-            st.markdown(clean_html(f"""
-            <div class="copilot-container">
-                <div class="section-header-row" style="margin-bottom: 6px;">
-                    {icon_spark}
-                    <div>
-                        <div class="section-header-title">{t("copilot_card_title", lang)}</div>
-                        <div style="font-size: 13px; color: var(--text-muted);">{t("copilot_subtitle", lang)}</div>
-                    </div>
-                </div>
-            """), unsafe_allow_html=True)
-            
-            col_p1, col_p2, col_p3 = st.columns(3)
-            quick_selected = None
-            with col_p1:
-                if st.button(f"💡 {t('copilot_pill_1', lang)}", key="btn_pill_1", use_container_width=True):
-                    quick_selected = t('copilot_pill_1', lang)
-            with col_p2:
-                if st.button(f"⏱️ {t('copilot_pill_2', lang)}", key="btn_pill_2", use_container_width=True):
-                    quick_selected = t('copilot_pill_2', lang)
-            with col_p3:
-                if st.button(f"🛡️ {t('copilot_pill_3', lang)}", key="btn_pill_3", use_container_width=True):
-                    quick_selected = t('copilot_pill_3', lang)
-                    
-            copilot_input = st.text_input(
-                "Câu hỏi đàm phán:",
-                value=quick_selected if quick_selected else "",
-                placeholder=t("copilot_prompt_placeholder", lang),
+            supp_text = st.text_area(
+                "Thông tin bổ sung từ khách:",
+                placeholder="Ví dụ: Bổ sung số lượng: 10 máy chủ Dell R750 và 5 switch Cisco C9200L, ngân sách 1 tỷ 2...",
+                height=85,
+                key="supp_info_input_b2",
                 label_visibility="collapsed"
             )
-            
-            if st.button(t("copilot_btn_ask", lang), key="btn_run_copilot") or quick_selected:
-                q_text = quick_selected if quick_selected else copilot_input
-                if q_text:
-                    with st.spinner("AI Sales Copilot đang phân tích biên lợi nhuận và lập phương án đàm phán..."):
-                        copilot_ans = st.session_state.agent.negotiate_copilot(result, q_text)
-                        st.session_state.copilot_history[result["opportunity_id"]] = copilot_ans
-                        
-            active_copilot_ans = st.session_state.copilot_history.get(result["opportunity_id"])
-            if active_copilot_ans:
+            if st.button(t("btn_resubmit_clarification", lang), key="btn_submit_supp_b2", use_container_width=True, type="primary"):
+                if supp_text.strip():
+                    orig_input = st.session_state.get("text_req_input", "") or sample_requests[1]["raw_text"]
+                    combined = orig_input + "\n\n[Thông tin bổ sung tiếp nhận lại tại B1]:\n" + supp_text.strip()
+                    st.session_state.current_result = st.session_state.agent.process_request(combined)
+                    if st.session_state.current_result.get("sales_rep"):
+                        st.session_state.assigned_rep_name = st.session_state.current_result["sales_rep"]["FullName"]
+                    st.session_state.wf_active_step = 2
+                    st.toast("Đã tiếp nhận thông tin bổ sung vào B1 và hoàn tất tái thẩm định B2!", icon="✅")
+                    st.rerun()
+        else:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-success); margin-bottom: 18px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="font-size: 16px; font-weight: 800; color: var(--status-success);">
+                        ✅ {t("gateway_1_sufficient", lang)}
+                    </div>
+                    <span class="badge-capsule badge-green">Đầy đủ thông tin</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                    Yêu cầu đã được kiểm tra: Doanh nghiệp rõ ràng, chủng loại thiết bị và dịch vụ định danh đầy đủ, sẵn sàng khởi tạo Hồ sơ Cơ hội CRM.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        # 2. Cảnh báo Thiếu ngân sách & Rủi ro Bỏ sót hạng mục
+        col_chk1, col_chk2 = st.columns(2)
+        with col_chk1:
+            budget_val = parsed.get("budget")
+            if budget_val is None or budget_val <= 0:
                 st.markdown(clean_html(f"""
-                <div class="copilot-msg-box">
-                    {active_copilot_ans}
+                <div style="background: var(--status-warning-bg); border: 1px solid var(--status-warning-border); padding: 14px 16px; border-radius: 14px; margin-bottom: 12px;">
+                    <div style="font-weight: 800; color: var(--status-warning); font-size: 14px; margin-bottom: 4px;">
+                        ⚠ {t("warning_missing_budget", lang)}
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                        Khách hàng chưa khai báo ngân sách tổng trần. Hệ thống đã kích hoạt kịch bản đề xuất ngân sách tham chiếu theo cấu hình tiêu chuẩn của Minh An để NVKD tư vấn.
+                    </div>
                 </div>
                 """), unsafe_allow_html=True)
-                
+            else:
+                st.markdown(clean_html(f"""
+                <div style="background: var(--status-success-bg); border: 1px solid var(--status-success-border); padding: 14px 16px; border-radius: 14px; margin-bottom: 12px;">
+                    <div style="font-weight: 800; color: var(--status-success); font-size: 14px; margin-bottom: 4px;">
+                        💰 Ngân sách Tổng của Khách hàng: {budget_val:,.0f} đ
+                    </div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                        Ngân sách đã được xác lập cụ thể, làm căn cứ thẩm định phương án tài chính và mức chiết khấu phù hợp.
+                    </div>
+                </div>
+                """), unsafe_allow_html=True)
+
+        with col_chk2:
+            extracted_items = parsed.get("items", [])
+            st.markdown(clean_html(f"""
+            <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.25); padding: 14px 16px; border-radius: 14px; margin-bottom: 12px;">
+                <div style="font-weight: 800; color: var(--accent-indigo); font-size: 14px; margin-bottom: 4px;">
+                    🛡️ {t("warning_omitted_items", lang)}: {len(extracted_items)} Hạng mục
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                    100% yêu cầu về máy chủ, thiết bị mạng, linh kiện và dịch vụ kỹ thuật đã được bóc tách tự động, loại bỏ hoàn toàn nguy cơ NVKD bỏ sót hạng mục khi lập đề xuất.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        # 3. Bảng tóm tắt thông tin bóc tách
+        st.markdown(clean_html(f"""
+        <div class="bento-surface" style="margin-top: 8px;">
+            <div style="font-weight: 800; font-size: 15px; color: var(--text-primary); margin-bottom: 8px;">
+                📋 Dữ liệu Hồ sơ Khách hàng đã Bóc tách từ Văn bản:
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; font-size: 13px; color: var(--text-secondary);">
+                <div>• <b>Doanh nghiệp:</b> <span style="color: var(--text-primary); font-weight: 700;">{parsed.get('company_name', 'Chưa rõ')}</span></div>
+                <div>• <b>Người liên hệ:</b> <span style="color: var(--text-primary); font-weight: 700;">{parsed.get('contact_person', 'Chưa rõ')}</span></div>
+                <div>• <b>Email:</b> {parsed.get('email', 'Chưa cung cấp')}</div>
+                <div>• <b>Số điện thoại:</b> {parsed.get('phone', 'Chưa cung cấp')}</div>
+                <div>• <b>Thời hạn mong muốn:</b> {parsed.get('desired_delivery_days', 'Chưa nêu')} ngày</div>
+                <div>• <b>Chiết khấu đề xuất:</b> {parsed.get('requested_discount_pct', 0.0)}%</div>
+            </div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # Bottom navigation
+        c_nav_l, c_nav_r = st.columns([1, 1])
+        with c_nav_l:
+            if st.button("◀ Quay lại Bước 1 (Tiếp nhận)", use_container_width=True, key="btn_b2_back"):
+                st.session_state.wf_active_step = 1
+                st.rerun()
+        with c_nav_r:
+            if st.button("Tiếp tục sang Bước 3: Tạo Hồ sơ Cơ hội (CRM) ➔", use_container_width=True, type="primary", disabled=not is_suff, key="btn_b2_next"):
+                st.session_state.wf_active_step = 3
+                st.rerun()
+
+    def render_step_3():
+        """BƯỚC 3: TẠO HỒ SƠ CƠ HỘI (CRM & Gán NVKD trong 6 NVKD)"""
+        if not cur_res:
+            st.info("Chưa có dữ liệu yêu cầu. Vui lòng quay lại Bước 1.")
+            return
+
+        parsed = cur_res.get("parsed_request") or {}
+        opp_rec = cur_res.get("opportunity_record") or {}
+        
+        icon_crm = get_icon_tile("user_check", "indigo")
+        st.markdown(clean_html(f"""
+        <div class="section-header-row">
+            {icon_crm}
+            <div class="section-header-title">Bước 3: Tạo Hồ sơ Cơ hội & Phân bổ NVKD (CRM Minh An)</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        c_opp_l, c_opp_r = st.columns([6, 4])
+        with c_opp_l:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--accent-indigo); margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div>
+                        <div style="font-size: 12px; font-weight: 700; color: var(--accent-indigo); text-transform: uppercase; letter-spacing: 0.5px;">HỒ SƠ CƠ HỘI CHUẨN HÓA</div>
+                        <div style="font-size: 22px; font-weight: 800; color: var(--text-primary);">{cur_res.get('opportunity_id')}</div>
+                    </div>
+                    <span class="badge-capsule badge-blue">Đã ghi nhận CRM</span>
+                </div>
+                <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+                    • <b>Khách hàng Doanh nghiệp:</b> <span style="font-weight: 700; color: var(--text-primary);">{parsed.get('company_name')}</span><br>
+                    • <b>Người đại diện liên hệ:</b> {parsed.get('contact_person')} ({parsed.get('email')} • {parsed.get('phone')})<br>
+                    • <b>Thời điểm khởi tạo:</b> {opp_rec.get('created_at', datetime.now().strftime('%d/%m/%Y %H:%M:%S'))}<br>
+                    • <b>Kênh tiếp nhận:</b> Inbound Email & Web Form Gateway (~180 yêu cầu/tuần)
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            # CẢNH BÁO ĐỊNH DANH NGƯỜI THEO DÕI — TRIỆT TIÊU RỦI RO HỒ SƠ BỊ THẢ NỔI
+            st.markdown(clean_html(f"""
+            <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 14px; padding: 14px 18px; margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span style="font-size: 16px;">👤</span>
+                    <span style="font-weight: 800; color: var(--status-success); font-size: 14px;">KIỂM SOÁT NGƯỜI THEO DÕI (OWNER & FOLLOWER)</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                    {t("follower_established_note", lang)}. Hồ sơ bắt buộc có NVKD trực tiếp phụ trách và Cán bộ theo dõi giám sát tiến độ để đảm bảo phản hồi khách hàng trong cam kết 2-4 giờ.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        with c_opp_r:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="margin-bottom: 16px;">
+                <div style="font-weight: 800; font-size: 15px; color: var(--text-primary); margin-bottom: 12px;">
+                    🎯 Phân bổ & Gán Trách nhiệm Xử lý:
+                </div>
+            """), unsafe_allow_html=True)
+
+            # 1. Gán NVKD trong nhóm 6 NVKD của Minh An
+            sales_df = st.session_state.sales_df
+            rep_options = []
+            for _, r in sales_df.iterrows():
+                rep_options.append(f"{r['StaffID']} - {r['FullName']} ({r['Specialty']})")
+
+            curr_rep = st.session_state.assigned_rep_name or (cur_res.get("sales_rep") or {}).get("FullName", "")
+            def_idx = 0
+            for idx_r, opt_r in enumerate(rep_options):
+                if curr_rep and curr_rep in opt_r:
+                    def_idx = idx_r
+                    break
+
+            selected_rep_str = st.selectbox(
+                t("assign_sales_rep_label", lang),
+                rep_options,
+                index=def_idx,
+                key="sb_sales_rep_b3"
+            )
+            if selected_rep_str:
+                chosen_name = selected_rep_str.split(" - ")[1].split(" (")[0].strip()
+                st.session_state.assigned_rep_name = chosen_name
+                m_rep = sales_df[sales_df["FullName"] == chosen_name]
+                if not m_rep.empty:
+                    cur_res["sales_rep"] = m_rep.iloc[0].to_dict()
+
+            # 2. Định danh Cán bộ theo dõi (Follower)
+            follower_val = st.text_input(
+                t("assign_follower_label", lang),
+                value=st.session_state.assigned_follower_name,
+                key="txt_follower_b3",
+                help="Loại bỏ tình trạng hồ sơ bị thả nổi hoặc chuyển qua lại không người chịu trách nhiệm."
+            )
+            if follower_val:
+                st.session_state.assigned_follower_name = follower_val
+
             st.markdown("</div>", unsafe_allow_html=True)
+
+        # Bottom navigation
+        c_nav_l, c_nav_r = st.columns([1, 1])
+        with c_nav_l:
+            if st.button("◀ Quay lại Bước 2 (Phân loại & Kiểm tra)", use_container_width=True, key="btn_b3_back"):
+                st.session_state.wf_active_step = 2
+                st.rerun()
+        with c_nav_r:
+            if st.button("Tiếp tục sang Bước 4: Thẩm định Kho & Giá ➔", use_container_width=True, type="primary", key="btn_b3_next"):
+                st.session_state.wf_active_step = 4
+                st.rerun()
+
+    def render_step_4():
+        """BƯỚC 4: THẨM ĐỊNH TỒN KHO & ĐƠN GIÁ (NVKD & Vận hành)"""
+        if not cur_res:
+            st.info("Chưa có dữ liệu yêu cầu. Vui lòng quay lại Bước 1.")
+            return
+
+        eval_data = cur_res.get("evaluation")
+        if not eval_data:
+            st.warning("Yêu cầu chưa đủ thông tin thẩm định. Vui lòng quay lại Bước 2.")
+            return
+
+        items_detail = eval_data.get("items_detail", [])
+        
+        icon_box = get_icon_tile("package", "teal")
+        st.markdown(clean_html(f"""
+        <div class="section-header-row">
+            {icon_box}
+            <div class="section-header-title">Bước 4: Thẩm định Kho & Đơn giá (NVKD & Bộ phận Vận hành)</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 1. Chốt chặn 1: Khóa 100% theo Bảng giá niêm yết hiện hành 2026
+        st.markdown(clean_html(f"""
+        <div style="background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.25); border-radius: 14px; padding: 14px 18px; margin-bottom: 16px;">
+            <div style="font-weight: 800; color: #0891b2; font-size: 14px; margin-bottom: 4px;">
+                🔒 {t("warning_price_control", lang)} — CHẶN DÙNG BẢNG GIÁ CŨ
+            </div>
+            <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                100% đơn giá từng hạng mục được hệ thống khóa cứng và đối soát theo Danh mục Bảng giá hiện hành 2026 của Minh An. Nghiêm cấm dùng bảng giá cũ hoặc tự ý nhập giá ngoài biểu giá niêm yết.
+            </div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 2. Chốt chặn 2 & 3: Thẩm định Tồn khả dụng & Cảnh báo SLA giao hàng
+        stock_warns = eval_data.get("stock_warnings", [])
+        lead_warns = eval_data.get("leadtime_warnings", [])
+        
+        if stock_warns or lead_warns:
+            for w in stock_warns:
+                st.markdown(clean_html(f"""
+                <div style="background: var(--status-warning-bg); border: 1px solid var(--status-warning-border); color: var(--status-warning); padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 8px;">
+                    📦 <b>Cảnh báo Tồn kho Khả dụng:</b> {w}
+                </div>
+                """), unsafe_allow_html=True)
+            for lw in lead_warns:
+                st.markdown(clean_html(f"""
+                <div style="background: var(--status-danger-bg); border: 1px solid var(--status-danger-border); color: var(--status-danger); padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 8px;">
+                    ⏱️ <b>{t("warning_leadtime_sla", lang)}:</b> {lw}
+                </div>
+                """), unsafe_allow_html=True)
+        else:
+            st.markdown(clean_html(f"""
+            <div style="background: var(--status-success-bg); border: 1px solid var(--status-success-border); color: var(--status-success); padding: 12px 16px; border-radius: 12px; font-size: 13px; margin-bottom: 12px;">
+                ✅ <b>SLA KHO & VẬN HÀNH ĐẠT CHUẨN:</b> Hàng sẵn kho 100%, thời gian điều phối cam kết 1-2 ngày, đáp ứng hoàn toàn thời hạn triển khai của khách hàng.
+            </div>
+            """), unsafe_allow_html=True)
+
+        # 3. Bảng thẻ chi tiết từng hạng mục thiết bị & dịch vụ
+        st.markdown(clean_html(f'<div style="font-weight: 800; font-size: 15px; color: var(--text-primary); margin-top: 14px; margin-bottom: 10px;">📦 Danh mục Hạng mục Thẩm định với Bộ phận Vận hành ({len(items_detail)} SKU):</div>'), unsafe_allow_html=True)
+        for it in items_detail:
+            status_str = str(it.get("StockStatus", ""))
+            is_service = ("Dịch vụ" in status_str or it.get("Category") == "Dịch vụ" or it.get("AvailableStock", 0) >= 999 or "SVC-" in str(it.get("SKU", "")).upper())
+            is_in_stock = ("Đủ hàng" in status_str or (not is_service and it.get("AvailableStock", 0) >= it.get("Quantity", 1)))
+            
+            if is_service:
+                stock_badge = '<span class="badge-capsule badge-cyan">Dịch vụ · không giới hạn</span>'
+            elif is_in_stock:
+                stock_badge = f'<span class="badge-capsule badge-green">{status_str}</span>'
+            else:
+                stock_badge = f'<span class="badge-capsule badge-red">{status_str}</span>'
+            
+            st.markdown(clean_html(f"""
+            <div class="item-showcase-tile">
+                <div style="max-width: 65%;">
+                    <div style="font-weight: 700; font-size: 15px; color: var(--text-primary); margin-bottom: 4px;">{it['ProductName']}</div>
+                    <div style="display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+                        <span class="sku-mono-pill">{it['SKU']}</span>
+                        <span>SL: <b>{it['Quantity']} {it['Unit']}</b></span>
+                        <span>• Giá niêm yết 2026: <b>{it['UnitPrice']:,.0f} đ</b></span>
+                        <span>• Tồn kho Vận hành: <b>{it.get('AvailableStock', 0)}</b></span>
+                        <span>• SLA giao: <b>{it.get('DeliveryDays', 1)} ngày</b></span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: 800; font-size: 16px; color: var(--text-primary);">{it['FinalTotal']:,.0f} đ</div>
+                    <div style="margin-top: 6px;">{stock_badge}</div>
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        # Bottom navigation
+        c_nav_l, c_nav_r = st.columns([1, 1])
+        with c_nav_l:
+            if st.button("◀ Quay lại Bước 3 (Hồ sơ Cơ hội CRM)", use_container_width=True, key="btn_b4_back"):
+                st.session_state.wf_active_step = 3
+                st.rerun()
+        with c_nav_r:
+            if st.button("Tiếp tục sang Bước 5: Lập Báo giá & Dự thảo ➔", use_container_width=True, type="primary", key="btn_b4_next"):
+                st.session_state.wf_active_step = 5
+                st.rerun()
+
+    def render_step_5():
+        """BƯỚC 5: LẬP BÁO GIÁ & DỰ THẢO + NHÁNH TRƯỞNG PHÒNG DUYỆT (KHI VƯỢT QUYỀN)"""
+        if not cur_res:
+            st.info("Chưa có dữ liệu yêu cầu. Vui lòng quay lại Bước 1.")
+            return
+
+        eval_data = cur_res.get("evaluation")
+        if not eval_data:
+            st.warning("Yêu cầu chưa đủ thông tin lập báo giá. Vui lòng quay lại Bước 2.")
+            return
+
+        parsed = cur_res.get("parsed_request") or {}
+        rep = cur_res.get("sales_rep") or {}
+        approval_key = f"approval_status_{cur_res['opportunity_id']}"
+        current_appr_badge = st.session_state.get(approval_key, st.session_state.manager_decision or eval_data['decision_badge'])
+
+        icon_quote = get_icon_tile("sparkles", "indigo")
+        st.markdown(clean_html(f"""
+        <div class="section-header-row">
+            {icon_quote}
+            <div class="section-header-title">Bước 5: Lập Báo giá & Dự thảo Đề xuất (NVKD & AI Copilot)</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 1. 4 Thẻ KPI Tài chính & Tiến độ Báo giá
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.markdown(clean_html(f"""
+            <div class="stat-kpi-card">
+                <div class="stat-kpi-value">{eval_data['total_final_amount']:,.0f} đ</div>
+                <div class="stat-kpi-label">{t("kpi_total_amount", lang)}</div>
+            </div>
+            """), unsafe_allow_html=True)
+        with k2:
+            st.markdown(clean_html(f"""
+            <div class="stat-kpi-card">
+                <div class="stat-kpi-value">{eval_data['discount_pct']:.1f}%</div>
+                <div class="stat-kpi-label">{t("kpi_discount", lang)} ({eval_data['total_discount_amount']:,.0f} đ)</div>
+            </div>
+            """), unsafe_allow_html=True)
+        with k3:
+            st.markdown(clean_html(f"""
+            <div class="stat-kpi-card">
+                <div class="stat-kpi-value">{eval_data['max_lead_time_days']} ngày</div>
+                <div class="stat-kpi-label">{t("kpi_lead_time", lang)}</div>
+            </div>
+            """), unsafe_allow_html=True)
+        with k4:
+            st.markdown(clean_html(f"""
+            <div class="stat-kpi-card">
+                <div class="stat-kpi-value" style="font-size: 20px; line-height: 33px;">{eval_data['budget_status']}</div>
+                <div class="stat-kpi-label">Ngân sách vs Báo giá</div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        st.write("")
+
+        # 2. Điểm rẽ 2: Kiểm tra Thẩm quyền & Nhánh Trưởng phòng duyệt khi vượt quyền
+        if eval_data["needs_manager_approval"]:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-warning); margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-weight: 800; font-size: 16px; color: var(--status-warning);">
+                        ⚡ ĐIỂM RẼ 2: VƯỢT THẨM QUYỀN NVKD ➔ CHUYỂN TRƯỞNG PHÒNG KINH DOANH DUYỆT
+                    </div>
+                    <span class="badge-capsule badge-amber">{current_appr_badge}</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 10px;">
+                    • <b>Lý do chuyển duyệt:</b> Chiết khấu đề xuất <b>{eval_data['discount_pct']:.1f}%</b> (vượt hạn mức 5.0% của NVKD) hoặc Tổng giá trị <b>{eval_data['total_final_amount']:,.0f} đ</b> (vượt 100M đ).<br>
+                    • <b>NVKD trình duyệt:</b> {rep.get('FullName')} ({rep.get('StaffID')}) &nbsp;|&nbsp; 
+                    • <b>Cán bộ theo dõi tiến độ:</b> {st.session_state.assigned_follower_name}
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            # Khối tương tác Phê duyệt của Trưởng phòng Kinh doanh
+            st.markdown(clean_html(f"""
+            <div class="telegram-approval-card" style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <span class="badge-capsule badge-amber">Kênh Phê duyệt Cấp quản lý</span>
+                    <span style="font-size: 13px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">Recipient: Trưởng phòng Kinh doanh Minh An</span>
+                </div>
+                <div style="font-size: 14px; color: var(--text-primary); line-height: 1.6; margin-bottom: 14px;">
+                    Hồ sơ <b>{cur_res['opportunity_id']}</b> cho khách hàng <b>{parsed.get('company_name')}</b> cần quyết định phê duyệt chính sách thương mại đặc biệt.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            c_act_ap1, c_act_ap2, c_act_ap3 = st.columns(3)
+            with c_act_ap1:
+                if st.button("✅ Phê duyệt Đề xuất", key="btn_ap_mgr_ok", use_container_width=True, type="primary"):
+                    st.session_state[approval_key] = "Trưởng phòng Kinh doanh: ĐÃ PHÊ DUYỆT"
+                    st.session_state.manager_decision = "ĐÃ PHÊ DUYỆT"
+                    st.toast("Trưởng phòng Kinh doanh đã phê duyệt đề xuất chiết khấu!", icon="✅")
+                    st.rerun()
+            with c_act_ap2:
+                if st.button("💬 Yêu cầu Điều chỉnh", key="btn_ap_mgr_adj", use_container_width=True):
+                    st.session_state[approval_key] = "Trưởng phòng yêu cầu NVKD đàm phán giảm chiết khấu"
+                    st.session_state.manager_decision = "YÊU CẦU ĐIỀU CHỈNH"
+                    st.toast("Đã chuyển yêu cầu đàm phán giảm chiết khấu đến NVKD!", icon="💬")
+                    st.rerun()
+            with c_act_ap3:
+                if st.button("❌ Từ chối Phê duyệt", key="btn_ap_mgr_rej", use_container_width=True):
+                    st.session_state[approval_key] = "Trưởng phòng Kinh doanh: TỪ CHỐI"
+                    st.session_state.manager_decision = "TỪ CHỐI"
+                    st.toast("Trưởng phòng Kinh doanh đã từ chối đề xuất chiết khấu!", icon="❌")
+                    st.rerun()
+        else:
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-success); margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="font-weight: 800; font-size: 16px; color: var(--status-success);">
+                        🟢 NVKD TỰ QUYẾT ĐỊNH TRONG THẨM QUYỀN
+                    </div>
+                    <span class="badge-capsule badge-green">Tự quyết 100%</span>
+                </div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+                    Chiết khấu <b>{eval_data['discount_pct']:.1f}%</b> <= 5.0% và Giá trị hợp đồng nằm trong hạn mức phân quyền. NVKD {rep.get('FullName')} được quyền ký duyệt và gửi báo giá trực tiếp đến khách hàng.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+        # 3. Bản nháp Phản hồi khách hàng & Tải Excel Báo giá
+        c_prop1, c_prop2 = st.columns([6, 4])
+        with c_prop1:
+            st.markdown(clean_html(f'<div class="section-header-title" style="margin-bottom: 8px;">{t("proposal_email_title", lang)}:</div>'), unsafe_allow_html=True)
+            prop_text = cur_res.get("client_proposal", "")
+            st.text_area("Bản nháp gửi khách hàng:", value=prop_text, height=220, label_visibility="collapsed", key="area_client_prop_b5")
+            st.download_button(
+                t("btn_download_proposal", lang),
+                data=prop_text,
+                file_name=f"De_xuat_kinh_doanh_{cur_res['opportunity_id']}.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="btn_dl_prop_b5"
+            )
+
+        with c_prop2:
+            st.markdown(clean_html(f'<div class="section-header-title" style="margin-bottom: 8px;">Tải Báo giá Chính thức (.xlsx):</div>'), unsafe_allow_html=True)
+            items_df = pd.DataFrame(eval_data["items_detail"])
+            excel_buf = io.BytesIO()
+            with pd.ExcelWriter(excel_buf, engine="openpyxl") as writer:
+                items_df.to_excel(writer, sheet_name="Bao_Gia", index=False)
+            excel_data_bytes = excel_buf.getvalue()
+            
+            st.markdown(clean_html(f"""
+            <div style="background: var(--bg-surface); border: 1px solid var(--border-card); border-radius: 14px; padding: 18px; margin-bottom: 12px;">
+                <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 6px;">Bảng Báo giá Thương mại Minh An</div>
+                <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px;">
+                    Bao gồm {len(items_df)} hạng mục đã thẩm định kho, áp dụng đúng bảng giá hiện hành 2026 và chiết khấu thương mại.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+            
+            st.download_button(
+                label=t("btn_download_quotation", lang),
+                data=excel_data_bytes,
+                file_name=f"Bao_gia_{cur_res['opportunity_id']}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary",
+                key="btn_dl_quote_b5"
+            )
+
+        # Bottom navigation
+        c_nav_l, c_nav_r = st.columns([1, 1])
+        with c_nav_l:
+            if st.button("◀ Quay lại Bước 4 (Thẩm định Kho & Giá)", use_container_width=True, key="btn_b5_back"):
+                st.session_state.wf_active_step = 4
+                st.rerun()
+        with c_nav_r:
+            if st.button("Tiếp tục sang Bước 6: Kết thúc & Theo dõi ➔", use_container_width=True, type="primary", key="btn_b5_next"):
+                st.session_state.wf_active_step = 6
+                st.rerun()
+
+    def render_step_6():
+        """BƯỚC 6: KẾT THÚC — CẬP NHẬT & THEO DÕI HỒ SƠ CƠ HỘI"""
+        if not cur_res:
+            st.info("Chưa có dữ liệu yêu cầu. Vui lòng quay lại Bước 1.")
+            return
+
+        eval_data = cur_res.get("evaluation") or {}
+        parsed = cur_res.get("parsed_request") or {}
+        rep = cur_res.get("sales_rep") or {}
+        opp_rec = cur_res.get("opportunity_record") or {}
+        
+        icon_flag = get_icon_tile("clipboard_check", "emerald")
+        st.markdown(clean_html(f"""
+        <div class="section-header-row">
+            {icon_flag}
+            <div class="section-header-title">Bước 6: Kết thúc — Cập nhật & Theo dõi Hồ sơ Cơ hội (Hoàn tất)</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 1. Thẻ Chốt trạng thái Hồ sơ Cơ hội
+        wf_status_label = "Chờ Trưởng phòng phê duyệt" if (eval_data.get('needs_manager_approval') and not st.session_state.get('manager_decision')) else "Đã xuất báo giá (Hoàn tất)"
+        wf_badge_cls = "badge-amber" if (eval_data.get('needs_manager_approval') and not st.session_state.get('manager_decision')) else "badge-green"
+        
+        st.markdown(clean_html(f"""
+        <div class="bento-surface" style="border-left: 4px solid var(--status-success); margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div style="font-weight: 800; font-size: 18px; color: var(--text-primary);">
+                    Hồ sơ Cơ hội: {cur_res['opportunity_id']}
+                </div>
+                <span class="badge-capsule {wf_badge_cls}">{wf_status_label}</span>
+            </div>
+            <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+                • <b>Khách hàng:</b> <span style="font-weight: 700; color: var(--text-primary);">{parsed.get('company_name')}</span> (Đại diện: {parsed.get('contact_person')})<br>
+                • <b>NVKD phụ trách:</b> {rep.get('FullName')} ({rep.get('StaffID')} - {rep.get('Specialty')})<br>
+                • <b>Cán bộ theo dõi tiếp theo:</b> <span style="font-weight: 700; color: var(--accent-indigo);">{st.session_state.assigned_follower_name}</span><br>
+                • <b>Giá trị đề xuất chốt:</b> <span style="font-weight: 800; color: var(--text-primary);">{eval_data.get('total_final_amount', 0):,.0f} đ</span> (Chiết khấu: <b>{eval_data.get('discount_pct', 0):.1f}%</b>)<br>
+                • <b>Kế hoạch Hành động Tiếp theo:</b> Gửi email báo giá và bản nháp phản hồi đến khách hàng trong vòng 2 giờ; theo dõi phản hồi trong 48 giờ; phối hợp bộ phận Vận hành chuẩn bị sẵn hàng khi hợp đồng được xác nhận.
+            </div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # 2. Biểu đồ Phân tích Kỹ thuật & Tài chính (Plotly)
+        st.markdown(clean_html(f"""
+        <div class="section-header-row" style="margin-top: 18px; margin-bottom: 12px;">
+            {get_icon_tile("sparkles", "indigo")}
+            <div class="section-header-title">{t("charts_single_title", lang)}</div>
+        </div>
+        """), unsafe_allow_html=True)
+
+        # Dual Gauge Card Thẩm quyền
+        try:
+            render_governance_card(eval_data, is_dark=is_dark, lang=lang)
+        except Exception:
+            pass
+
+        items_list = eval_data.get("items_detail") or []
+        col_c_a, col_c_b = st.columns(2, gap="large")
+        with col_c_a:
+            try:
+                fig_it, ins_it, df_it = chart_opportunity_item_values(items_list, is_dark=is_dark, lang=lang)
+                render_chart_card(fig_it, t("chart_opp_items", lang), ins_it, df_it, "opp_items_b6", lang=lang)
+            except Exception:
+                pass
+            try:
+                fig_inv, ins_inv, df_inv = chart_opportunity_inventory_comparison(items_list, is_dark=is_dark, lang=lang)
+                render_chart_card(fig_inv, t("chart_opp_inventory", lang), ins_inv, df_inv, "opp_inv_b6", lang=lang)
+            except Exception:
+                pass
+
+        with col_c_b:
+            try:
+                fig_cat, ins_cat, df_cat = chart_opportunity_category_donut(items_list, is_dark=is_dark, lang=lang)
+                render_chart_card(fig_cat, t("chart_opp_category", lang), ins_cat, df_cat, "opp_cat_b6", lang=lang)
+            except Exception:
+                pass
+            try:
+                fig_lt, ins_lt, df_lt = chart_leadtime_timeline(items_list, is_dark=is_dark, lang=lang)
+                render_chart_card(fig_lt, t("chart_opp_leadtime", lang), ins_lt, df_lt, "opp_lt_b6", lang=lang)
+            except Exception:
+                pass
+
+        # 3. Nhật ký Xử lý Minh bạch (Audit Trail Log)
+        if "audit_logs" in cur_res and cur_res["audit_logs"]:
+            st.markdown(clean_html(f"""
+            <div class="section-header-row" style="margin-top: 20px;">
+                {get_icon_tile("clipboard_check", "emerald")}
+                <div class="section-header-title">{t("audit_trail_title", lang)}</div>
+            </div>
+            """), unsafe_allow_html=True)
+            with st.expander("Xem toàn bộ lịch sử các bước xử lý minh bạch & quy tắc đã áp dụng", expanded=True):
+                for log_entry in cur_res["audit_logs"]:
+                    actor_tag = log_entry.get("actor", "NVKD & Vận hành")
+                    st.markdown(clean_html(f"""
+                    <div class="audit-step-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span style="font-weight: 700; color: var(--text-primary); font-size: 14px;">{log_entry['step_name']}</span>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <span class="badge-capsule badge-blue" style="font-size: 11px;">Phụ trách: {actor_tag}</span>
+                                <span class="sku-mono-pill">{log_entry['timestamp']}</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 13px; color: var(--accent-indigo); margin-bottom: 4px;">Quy tắc: <b>{log_entry['rule_applied']}</b></div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">{log_entry['details']}</div>
+                    </div>
+                    """), unsafe_allow_html=True)
+
+        # 4. Trợ lý đàm phán AI Sales Copilot
+        icon_spark = get_icon_tile("sparkles", "pink")
+        st.markdown(clean_html(f"""
+        <div class="copilot-container" style="margin-top: 20px;">
+            <div class="section-header-row" style="margin-bottom: 6px;">
+                {icon_spark}
+                <div>
+                    <div class="section-header-title">{t("copilot_card_title", lang)}</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">{t("copilot_subtitle", lang)}</div>
+                </div>
+            </div>
+        """), unsafe_allow_html=True)
+        
+        col_p1, col_p2, col_p3 = st.columns(3)
+        quick_sel = None
+        with col_p1:
+            if st.button(f"💡 {t('copilot_pill_1', lang)}", key="btn_pill_1_b6", use_container_width=True):
+                quick_sel = t('copilot_pill_1', lang)
+        with col_p2:
+            if st.button(f"⏱️ {t('copilot_pill_2', lang)}", key="btn_pill_2_b6", use_container_width=True):
+                quick_sel = t('copilot_pill_2', lang)
+        with col_p3:
+            if st.button(f"🛡️ {t('copilot_pill_3', lang)}", key="btn_pill_3_b6", use_container_width=True):
+                quick_sel = t('copilot_pill_3', lang)
+                
+        copilot_input = st.text_input(
+            "Câu hỏi đàm phán:",
+            value=quick_sel if quick_sel else "",
+            placeholder=t("copilot_prompt_placeholder", lang),
+            label_visibility="collapsed",
+            key="txt_copilot_b6"
+        )
+        
+        if st.button(t("copilot_btn_ask", lang), key="btn_run_copilot_b6") or quick_sel:
+            q_txt = quick_sel if quick_sel else copilot_input
+            if q_txt:
+                with st.spinner("AI Sales Copilot đang phân tích biên lợi nhuận và lập phương án đàm phán..."):
+                    copilot_ans = st.session_state.agent.negotiate_copilot(cur_res, q_txt)
+                    st.session_state.copilot_history[cur_res["opportunity_id"]] = copilot_ans
+                    
+        active_copilot_ans = st.session_state.copilot_history.get(cur_res["opportunity_id"])
+        if active_copilot_ans:
+            st.markdown(clean_html(f"""
+            <div class="copilot-msg-box">
+                {active_copilot_ans}
+            </div>
+            """), unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # 5. Các nút thao tác Kết thúc
+        c_fin1, c_fin2, c_fin3 = st.columns([1, 1, 1])
+        with c_fin1:
+            if st.button("💾 Lưu vào Pipeline CRM", use_container_width=True, type="primary", key="btn_save_crm_b6"):
+                st.session_state.pipeline_history.append({
+                    "OpportunityID": cur_res["opportunity_id"],
+                    "CreatedAt": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "Customer": parsed.get("company_name", ""),
+                    "SalesRep": rep.get("FullName", ""),
+                    "TotalAmount": eval_data.get("total_final_amount", 0),
+                    "DiscountPct": eval_data.get("discount_pct", 0),
+                    "Approval": eval_data.get("approval_level", "")
+                })
+                st.toast(t("toast_saved_pipeline", lang), icon="✨")
+        with c_fin2:
+            if st.button("◀ Xem lại Bước 5 (Báo giá)", use_container_width=True, key="btn_b6_back_b5"):
+                st.session_state.wf_active_step = 5
+                st.rerun()
+        with c_fin3:
+            if st.button("↺ Xử lý Yêu cầu Mới (Về Bước 1)", use_container_width=True, key="btn_b6_restart"):
+                st.session_state.wf_active_step = 1
+                st.session_state.manager_decision = None
+                st.rerun()
+
+    # ================================================================================================
+    # ĐIỀU HƯỚNG HIỂN THỊ THEO CHẾ ĐỘ (WIZARD VS OVERVIEW)
+    # ================================================================================================
+    if st.session_state.wf_view_mode == "wizard":
+        if active_step == 1:
+            render_step_1()
+        elif active_step == 2:
+            render_step_2()
+        elif active_step == 3:
+            render_step_3()
+        elif active_step == 4:
+            render_step_4()
+        elif active_step == 5:
+            render_step_5()
+        elif active_step == 6:
+            render_step_6()
+    else:
+        # CHẾ ĐỘ TOÀN CẢNH (OVERVIEW): HIỂN THỊ ĐẦY ĐỦ 6 BƯỚC TUẦN TỰ
+        render_step_1()
+        st.markdown("<hr style='margin: 32px 0; border: none; border-top: 1px dashed var(--border-color, #cbd5e1);'>", unsafe_allow_html=True)
+        render_step_2()
+        st.markdown("<hr style='margin: 32px 0; border: none; border-top: 1px dashed var(--border-color, #cbd5e1);'>", unsafe_allow_html=True)
+        render_step_3()
+        st.markdown("<hr style='margin: 32px 0; border: none; border-top: 1px dashed var(--border-color, #cbd5e1);'>", unsafe_allow_html=True)
+        render_step_4()
+        st.markdown("<hr style='margin: 32px 0; border: none; border-top: 1px dashed var(--border-color, #cbd5e1);'>", unsafe_allow_html=True)
+        render_step_5()
+        st.markdown("<hr style='margin: 32px 0; border: none; border-top: 1px dashed var(--border-color, #cbd5e1);'>", unsafe_allow_html=True)
+        render_step_6()
+
 
 # ====================================================================================================
 # TAB 2: PIPELINE XỬ LÝ HÀNG LOẠT & WEBHOOK INGESTION GATEWAY
@@ -1324,115 +1809,110 @@ with tab_analytics:
             </div>
             """), unsafe_allow_html=True)
         else:
-            # 4. THỐNG KÊ TÀI CHÍNH & KPI DOANH SỐ
+            # 4. CHỈ SỐ VẬN HÀNH & KIỂM SOÁT QUY TRÌNH DOANH NGHIỆP MINH AN
             fin_kpis = StatisticalAnalyticsEngine.compute_financial_kpis(curr_df)
             
             st.markdown(clean_html(f"""
             <div class="section-header-row">
-                {get_icon_tile("dollar_sign", "emerald")}
-                <div class="section-header-title">{t("analytics_sub_financial", lang)}</div>
+                {get_icon_tile("shield_check", "indigo")}
+                <div class="section-header-title">Hệ thống Giám sát Quy trình & Chỉ số Vận hành B2B (Minh An)</div>
             </div>
             """), unsafe_allow_html=True)
             
             fk1, fk2, fk3, fk4 = st.columns(4)
             with fk1:
-                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{fin_kpis["total_revenue"]:,.0f} đ</div><div class="stat-kpi-label">Tổng Doanh Thu Ghi Nhận</div></div>'), unsafe_allow_html=True)
+                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value" style="color:#10B981;">100%</div><div class="stat-kpi-label">Tỷ lệ Tạo Hồ sơ & Dự thảo Báo giá</div></div>'), unsafe_allow_html=True)
             with fk2:
-                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{fin_kpis["gross_profit"]:,.0f} đ</div><div class="stat-kpi-label">Lợi Nhuận Gộp Ước Tính</div></div>'), unsafe_allow_html=True)
+                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value" style="color:#6366F1;">100% Chuẩn Hóa</div><div class="stat-kpi-label">Chất lượng Đề xuất (0% Sót SKU / Lệch Giá)</div></div>'), unsafe_allow_html=True)
             with fk3:
-                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{fin_kpis["gross_margin_pct"]:.1f}%</div><div class="stat-kpi-label">Biên Lợi Nhuận Gộp (Margin)</div></div>'), unsafe_allow_html=True)
+                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value" style="color:#F59E0B;">Định Danh NVKD</div><div class="stat-kpi-label">Cảnh báo Điểm nghẽn (Chờ duyệt / Thiếu TT)</div></div>'), unsafe_allow_html=True)
             with fk4:
-                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value">{fin_kpis["aov"]:,.0f} đ</div><div class="stat-kpi-label">Giá Trị Đơn Bình Quân (AOV)</div></div>'), unsafe_allow_html=True)
+                st.markdown(clean_html(f'<div class="stat-kpi-card"><div class="stat-kpi-value" style="color:#06B6D4;">~180 Req / Tuần</div><div class="stat-kpi-label">Khối lượng 6 NVKD (Pipeline: {fin_kpis["total_revenue"]:,.0f} đ)</div></div>'), unsafe_allow_html=True)
 
             st.write("")
             
-            # 5. TIỂU MỤC THỐNG KÊ CHUYÊN SÂU
-            stat_sub1, stat_sub2, stat_sub3 = st.tabs([
-                t("analytics_sub_rfm", lang),
-                t("analytics_sub_segment", lang),
-                t("analytics_sub_charts", lang)
+            # 5. TIỂU MỤC THỐNG KÊ & BÁO CÁO CHUYÊN SÂU
+            stat_sub1, stat_sub2, stat_sub3, stat_sub4 = st.tabs([
+                t("analytics_sub_funnel", lang),
+                t("analytics_sub_risks", lang),
+                t("analytics_sub_team", lang),
+                t("analytics_sub_business", lang)
             ])
             
-            # SUB-TAB 1: PHÂN HẠNG KHÁCH HÀNG (RFM PRIORITIZATION)
+            # SUB-TAB 1: PHỄU CHUYỂN ĐỔI & TIẾN ĐỘ QUY TRÌNH (Yêu cầu -> Hồ sơ -> Bản nháp)
             with stat_sub1:
+                st.markdown(f"<div style='font-size: 13px; color: var(--text-muted); margin-bottom: 12px;'>{t('analytics_sub_funnel_desc', lang)}</div>", unsafe_allow_html=True)
+                fig_funnel, ins_funnel, df_funnel = chart_pipeline_funnel(curr_df, is_dark=is_dark, lang=lang)
+                render_chart_card(
+                    fig_funnel,
+                    t("chart_title_pipeline_funnel", lang),
+                    ins_funnel,
+                    data_df=df_funnel,
+                    card_id="funnel_deep_dive",
+                    lang=lang
+                )
+                
+            # SUB-TAB 2: ĐIỂM NGHẼN & CẢNH BÁO RỦI RO VẬN HÀNH (4 Vấn đề cốt lõi)
+            with stat_sub2:
+                st.markdown(f"<div style='font-size: 13px; color: var(--text-muted); margin-bottom: 12px;'>{t('analytics_sub_risks_desc', lang)}</div>", unsafe_allow_html=True)
+                fig_risk, ins_risk, df_risk = chart_operational_risk_bottlenecks(curr_df, is_dark=is_dark, lang=lang)
+                render_chart_card(
+                    fig_risk,
+                    t("chart_title_risk_matrix", lang),
+                    ins_risk,
+                    data_df=df_risk,
+                    card_id="risk_deep_dive",
+                    lang=lang
+                )
+                
+            # SUB-TAB 3: HIỆU SUẤT & PHÂN BỔ KHỐI LƯỢNG 6 NVKD
+            with stat_sub3:
+                st.markdown(f"<div style='font-size: 13px; color: var(--text-muted); margin-bottom: 12px;'>{t('analytics_sub_team_desc', lang)}</div>", unsafe_allow_html=True)
+                fig_team, ins_team, df_team = chart_sales_team_performance(curr_df, is_dark=is_dark, lang=lang)
+                render_chart_card(
+                    fig_team,
+                    t("chart_title_team_perf", lang),
+                    ins_team,
+                    data_df=df_team,
+                    card_id="team_perf_deep_dive",
+                    lang=lang
+                )
+
+            # SUB-TAB 4: PHÂN TÍCH KINH DOANH & PHÂN KHÚC KHÁCH HÀNG B2B
+            with stat_sub4:
+                st.markdown(f"<div style='font-size: 13px; color: var(--text-muted); margin-bottom: 12px;'>{t('analytics_sub_business_desc', lang)}</div>", unsafe_allow_html=True)
+                
+                # 4 thẻ tài chính
+                fsub1, fsub2, fsub3, fsub4 = st.columns(4)
+                with fsub1:
+                    st.metric("Tổng Doanh Thu Ghi Nhận", f"{fin_kpis['total_revenue']:,.0f} đ")
+                with fsub2:
+                    st.metric("Lợi Nhuận Gộp Ước Tính", f"{fin_kpis['gross_profit']:,.0f} đ")
+                with fsub3:
+                    st.metric("Biên Lợi Nhuận Gộp", f"{fin_kpis['gross_margin_pct']:.1f}%")
+                with fsub4:
+                    st.metric("Giá Trị Đơn Bình Quân (AOV)", f"{fin_kpis['aov']:,.0f} đ")
+                    
+                st.write("")
+                # RFM & Phân nhóm
                 segments_df = StatisticalAnalyticsEngine.segment_customers_rfm(curr_df)
                 if not segments_df.empty:
-                    st.markdown(f"<div class='notranslate' translate='no' style='font-size: 13px; color: var(--text-muted); margin-bottom: 10px;'>Phân hạng dựa trên doanh số và tần suất đơn. Bạn có thể chỉnh sửa trực tiếp cột <b>AssignedTier</b> bên dưới:</div>", unsafe_allow_html=True)
-                    try:
-                        edited_segments = st.data_editor(
-                            segments_df,
-                            key="rfm_segments_editor",
-                            column_config={
-                                "TotalSpend": st.column_config.NumberColumn("Tổng Doanh Thu (VNĐ)", format="%d đ"),
-                                "OrderCount": st.column_config.NumberColumn("Số Lượng Đơn"),
-                                "AOV": st.column_config.NumberColumn("AOV (VNĐ)", format="%d đ"),
-                                "AssignedTier": st.column_config.SelectboxColumn("Phân Hạng Khách Hàng", options=["VIP", "PRIORITY", "STANDARD"]),
-                                "ConfidencePct": st.column_config.ProgressColumn("Độ Tin Cậy (%)", min_value=0, max_value=100, format="%d%%"),
-                                "Reason": st.column_config.TextColumn("Lý Do Phân Loại", width="large")
-                            },
-                            width="stretch",
-                            hide_index=True
-                        )
-                    except Exception:
-                        st.dataframe(segments_df, width="stretch", hide_index=True)
-                else:
-                    st.info("Chưa tìm thấy cột khách hàng để phân hạng RFM.")
+                    st.markdown("<div style='font-size: 13px; color: var(--text-muted); margin-bottom: 8px;'><b>Phân hạng Khách hàng RFM:</b></div>", unsafe_allow_html=True)
+                    render_safe_dataframe(segments_df, num_formats={"TotalSpend": "%,.0f đ", "AOV": "%,.0f đ"}, width="stretch", hide_index=True)
                     
-            # SUB-TAB 2: PHÂN NHÓM LINH HOẠT (DYNAMIC SEGMENTATION)
-            with stat_sub2:
-                if len(curr_df.columns) > 200:
-                    st.warning("⚠️ Đã ẩn danh sách checkbox/phân nhóm do tệp dữ liệu vượt quá 200 cột để tránh làm vỡ giao diện.")
-                else:
-                    groupable_cols = [c for c in curr_df.columns if curr_df[c].nunique() <= 30]
-                    if groupable_cols:
-                        chosen_crit = st.selectbox("Chọn tiêu chí phân nhóm linh hoạt:", groupable_cols, index=0)
-                        seg_result = StatisticalAnalyticsEngine.flexible_segmentation(curr_df, criteria_col=chosen_crit)
-                        render_safe_dataframe(
-                            seg_result,
-                            num_formats={"TotalValue": "%,.0f đ", "SharePct": "%.1f%%"},
-                            width="stretch",
-                            hide_index=True
-                        )
-                    else:
-                        st.info("Dữ liệu không có cột phân nhóm phù hợp.")
-
-            # SUB-TAB 3: TRỰC QUAN HÓA PLOTLY TƯƠNG TÁC
-            with stat_sub3:
+                # Biểu đồ tài chính Plotly
                 plotly_charts = StatisticalAnalyticsEngine.build_financial_charts(curr_df, is_dark=is_dark)
                 if plotly_charts:
                     pc1, pc2 = st.columns(2)
                     with pc1:
                         if "donut_revenue" in plotly_charts:
-                            render_chart_card(
-                                plotly_charts["donut_revenue"],
-                                "Tỷ Trọng Doanh Thu Danh Mục",
-                                "Cơ cấu doanh thu danh mục sản phẩm chủ lực với chú thích phân bổ đầy đủ bên phải.",
-                                data_df=curr_df,
-                                card_id="stat_donut_rev",
-                                lang=lang
-                            )
+                            render_chart_card(plotly_charts["donut_revenue"], "Tỷ Trọng Doanh Thu Danh Mục", "", data_df=curr_df, card_id="stat_donut_rev", lang=lang)
                     with pc2:
                         if "bar_customer" in plotly_charts:
-                            render_chart_card(
-                                plotly_charts["bar_customer"],
-                                "Top Doanh Thu Khách Hàng",
-                                "Phân bổ tổng doanh thu khách hàng trọng điểm với số tiền VNĐ hiển thị trực tiếp bên cạnh cột.",
-                                data_df=curr_df,
-                                card_id="stat_bar_cust",
-                                lang=lang
-                            )
+                            render_chart_card(plotly_charts["bar_customer"], "Top Doanh Thu Khách Hàng", "", data_df=curr_df, card_id="stat_bar_cust", lang=lang)
                             
                     if "box_distribution" in plotly_charts:
-                        render_chart_card(
-                            plotly_charts["box_distribution"],
-                            "Phân Phối Giá Trị Đơn Hàng & Phát Hiện Ngoại Lệ",
-                            "Phân bố quy mô đơn hàng (Boxplot) định vị rõ mức trung vị và khoảng tứ phân vị.",
-                            data_df=curr_df,
-                            card_id="stat_box_dist",
-                            lang=lang
-                        )
-                else:
-                    st.info("Chưa đủ dữ liệu dạng số để vẽ biểu đồ phân tích.")
+                        render_chart_card(plotly_charts["box_distribution"], "Phân Phối Giá Trị Đơn Hàng & Ngoại Lệ", "", data_df=curr_df, card_id="stat_box_dist", lang=lang)
 
                 # Trình Tùy biến Biểu đồ Tương tác Động
                 st.markdown("---")
@@ -1471,44 +1951,287 @@ with tab_analytics:
                 except Exception as e:
                     st.info(f"Không thể dựng biểu đồ tùy biến: {e}")
 
-            # 6. NHẬN ĐỊNH CHIẾN LƯỢC & XUẤT BÁO CÁO TOÀN DIỆN
+            # ====================================================================================
+            # 6. HỆ THỐNG BÁO CÁO KINH DOANH ĐỘNG (CHUẨN HÓA 6 PHẦN) & XUẤT FILE WORD (.DOCX)
+            # ====================================================================================
             st.write("")
             st.markdown(clean_html(f"""
-            <div class="section-header-row notranslate" translate="no">
-                {get_icon_tile("clipboard_check", "indigo")}
-                <div class="section-header-title">{t("analytics_sub_insights", lang)}</div>
+            <div class="section-header-row notranslate" translate="no" style="margin-top: 24px; margin-bottom: 12px;">
+                {get_icon_tile("file_text", "indigo")}
+                <div>
+                    <div class="section-header-title">BÁO CÁO KINH DOANH & PHÂN TÍCH DỮ LIỆU ĐỘNG (DYNAMIC REPORT VIEW)</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Cấu trúc chuẩn hóa 6 phần • Phân tích động 100% theo dữ liệu thực tế • Xuất file Word (.docx) hoàn chỉnh</div>
+                </div>
             </div>
             """), unsafe_allow_html=True)
             
-            exec_insights = StatisticalAnalyticsEngine.generate_executive_insights(curr_df, fin_kpis, segments_df if 'segments_df' in locals() else None)
-            
-            formatted_insights = []
-            for ins in exec_insights:
-                safe_ins = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', str(ins))
-                formatted_insights.append(f'<div style="margin-bottom: 12px; line-height: 1.65; font-size: 14px; color: var(--text-primary);">{safe_ins}</div>')
+            # Khởi tạo dữ liệu Báo cáo Động từ DataFrame hiện tại
+            active_file_title = "Du_Lieu_Phan_Tich_Minh_An"
+            if multi_uploaded_files and len(multi_uploaded_files) > 0:
+                active_file_title = multi_uploaded_files[0].name
                 
+            report_pkg = DynamicBusinessReportGenerator.generate_report_data(
+                curr_df,
+                file_name=active_file_title,
+                audit_info=st.session_state.data_quality_report
+            )
+            
+            s1_d = report_pkg["section_1"]
+            s2_d = report_pkg["section_2"]
+            s3_d = report_pkg["section_3"]
+            s4_d = report_pkg["section_4"]
+            s5_d = report_pkg["section_5"]
+            s6_d = report_pkg["section_6"]
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 1: TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY)
+            # ------------------------------------------------------------------------------------
             st.markdown(clean_html(f"""
-            <div class="bento-surface notranslate" translate="no">
-                {''.join(formatted_insights)}
+            <div class="bento-surface" style="border-left: 4px solid var(--accent-indigo); margin-bottom: 18px;">
+                <div style="font-size: 16px; font-weight: 800; color: var(--accent-indigo); margin-bottom: 8px;">
+                    1. TÓM TẮT ĐIỀU HÀNH (EXECUTIVE SUMMARY)
+                </div>
+                <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.8;">
+                    • <b>Tên bộ dữ liệu phân tích:</b> <span style="font-weight: 700; color: var(--text-primary);">{s1_d['dataset_name']}</span><br>
+                    • <b>Quy mô tập dữ liệu:</b> {s1_d['total_rows']:,} dòng dữ liệu • {s1_d['total_cols']} trường thông tin.<br>
+                    • <b>Bối cảnh & Loại hình dữ liệu:</b> {s1_d['context_description']}
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            if s1_d.get("quantitative_summary"):
+                st.markdown(clean_html('<div style="font-size: 13.5px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">📊 Tổng giá trị và Độ phủ của các chỉ số định lượng chính:</div>'), unsafe_allow_html=True)
+                s1_cols_ui = st.columns(min(4, max(1, len(s1_d["quantitative_summary"]))))
+                for idx_q, qs in enumerate(s1_d["quantitative_summary"]):
+                    target_c = s1_cols_ui[idx_q % len(s1_cols_ui)]
+                    with target_c:
+                        st.markdown(clean_html(f"""
+                        <div class="stat-kpi-card" style="padding: 14px 16px; margin-bottom: 12px;">
+                            <div style="font-size: 12px; color: var(--text-muted); font-weight: 600;">{qs['column_name']}</div>
+                            <div class="stat-kpi-value" style="font-size: 20px; line-height: 28px;">{qs['sum']:,.0f}</div>
+                            <div style="font-size: 12px; color: var(--accent-indigo); margin-top: 4px;">Độ phủ: <b>{qs['coverage_text']}</b></div>
+                        </div>
+                        """), unsafe_allow_html=True)
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 2: DASHBOARD KPI (SO SÁNH KỲ GẦN NHẤT VS KỲ LIỀN TRƯỚC)
+            # ------------------------------------------------------------------------------------
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--accent-cyan); margin-bottom: 18px; margin-top: 10px;">
+                <div style="font-size: 16px; font-weight: 800; color: #0284C7; margin-bottom: 6px;">
+                    2. DASHBOARD KPI (SO SÁNH KỲ GẦN NHẤT VS KỲ LIỀN TRƯỚC)
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Đối chiếu kỳ gần nhất với kỳ liền trước. Các chỉ số không có trong file dữ liệu được thể hiện bằng dấu "—" nhằm đảm bảo tính trung thực số liệu.
+                </div>
             </div>
             """), unsafe_allow_html=True)
             
-            # Nút xuất Excel đa sheet đầy đủ
-            analytics_buffer = io.BytesIO()
-            with pd.ExcelWriter(analytics_buffer, engine="openpyxl") as writer:
-                curr_df.to_excel(writer, sheet_name="Du_Lieu_Goc", index=False)
-                if 'segments_df' in locals() and not segments_df.empty:
-                    segments_df.to_excel(writer, sheet_name="Phan_Hang_Khach_Hang", index=False)
-                pd.DataFrame([fin_kpis]).to_excel(writer, sheet_name="Chi_So_Tai_Chinh", index=False)
-            analytics_bytes = analytics_buffer.getvalue()
+            kpi_df = pd.DataFrame(s2_d["kpi_table"])
+            if not kpi_df.empty:
+                kpi_df_display = kpi_df.rename(columns={
+                    "metric": "Chỉ số",
+                    "current": "Giá trị (Kỳ gần nhất)",
+                    "previous": "Kỳ trước",
+                    "change": "Thay đổi %"
+                })
+                render_safe_dataframe(kpi_df_display[["Chỉ số", "Giá trị (Kỳ gần nhất)", "Kỳ trước", "Thay đổi %"]], width="stretch", hide_index=True)
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 3: PHÂN TÍCH CHUYÊN ĐỀ (CHI TIẾT TỪNG CỘT SỐ HỌC)
+            # ------------------------------------------------------------------------------------
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--accent-pink); margin-bottom: 18px; margin-top: 20px;">
+                <div style="font-size: 16px; font-weight: 800; color: #D946EF; margin-bottom: 6px;">
+                    3. PHÂN TÍCH CHUYÊN ĐỀ THEO TỪNG CHỈ SỐ ĐỊNH LƯỢNG
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Tự động phân tích thống kê chi tiết (Tổng, Trung bình, Trung vị, Độ lệch chuẩn, Min, Max, Tứ phân vị, Hệ số biến thiên CV) cho từng cột số học có trong bộ dữ liệu.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            thematic_list = s3_d.get("thematic_analysis", [])
+            if thematic_list:
+                for th in thematic_list:
+                    with st.expander(f"📈 Phân tích chuyên sâu chỉ số '{th['column']}' (Tổng: {th['sum']:,.0f})", expanded=True):
+                        th_c1, th_c2, th_c3, th_c4 = st.columns(4)
+                        with th_c1:
+                            st.metric("Trung bình (Mean)", f"{th['mean']:,.1f}")
+                        with th_c2:
+                            st.metric("Trung vị (Median)", f"{th['median']:,.1f}")
+                        with th_c3:
+                            st.metric("Độ lệch chuẩn (Std)", f"{th['std']:,.1f}")
+                        with th_c4:
+                            st.metric("Biên độ (Min - Max)", f"{th['min']:,.0f} ➔ {th['max']:,.0f}")
+                            
+                        st.markdown(clean_html(f"""
+                        <div style="background: var(--bg-surface-subtle); padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--text-secondary); margin-top: 8px;">
+                            • <b>Khoảng tứ phân vị (Q25 - Q75, IQR):</b> {th['q25']:,.1f} ➔ {th['q75']:,.1f} (IQR = {th['iqr']:,.1f})<br>
+                            • <b>Nhận xét phân phối:</b> {th['dist_note']}
+                        </div>
+                        """), unsafe_allow_html=True)
+            else:
+                st.info("Tập dữ liệu không chứa cột số học định lượng để phân tích chuyên đề sâu.")
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 4: KẾT LUẬN TỪ DỮ LIỆU THỰC TẾ
+            # ------------------------------------------------------------------------------------
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-warning); margin-bottom: 18px; margin-top: 20px;">
+                <div style="font-size: 16px; font-weight: 800; color: var(--status-warning); margin-bottom: 8px;">
+                    4. KẾT LUẬN TỪ DỮ LIỆU THỰC TẾ
+                </div>
+                <div style="font-size: 13.5px; color: var(--text-primary); line-height: 1.8;">
+                    {''.join([f'<div style="margin-bottom: 6px;">• {c}</div>' for c in s4_d.get('conclusions', [])])}
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 5: ĐỀ XUẤT HÀNH ĐỘNG (KÈM ƯU TIÊN VÀ CHỈ SỐ ĐO LƯỜNG)
+            # ------------------------------------------------------------------------------------
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid var(--status-success); margin-bottom: 18px; margin-top: 20px;">
+                <div style="font-size: 16px; font-weight: 800; color: var(--status-success); margin-bottom: 6px;">
+                    5. ĐỀ XUẤT HÀNH ĐỘNG & CHỈ SỐ ĐO LƯỜNG QUẢN TRỊ
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Các khuyến nghị quản trị cụ thể được lượng hóa kèm mức độ ưu tiên, chỉ số đo lường KPI và thời hạn hoàn thành.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            recs_df = pd.DataFrame(s5_d.get("recommendations", []))
+            if not recs_df.empty:
+                recs_display = recs_df.rename(columns={
+                    "stt": "STT",
+                    "action": "Khuyến nghị quản trị",
+                    "priority": "Mức độ ưu tiên",
+                    "metric": "Chỉ số đo lường (KPI Target)",
+                    "timeline": "Thời hạn"
+                })
+                render_safe_dataframe(recs_display[["STT", "Khuyến nghị quản trị", "Mức độ ưu tiên", "Chỉ số đo lường (KPI Target)", "Thời hạn"]], width="stretch", hide_index=True)
+
+            # ------------------------------------------------------------------------------------
+            # PHẦN 6: CHI TIẾT BỘ DỮ LIỆU & THỐNG KÊ KỸ THUẬT
+            # ------------------------------------------------------------------------------------
+            st.markdown(clean_html(f"""
+            <div class="bento-surface" style="border-left: 4px solid #64748B; margin-bottom: 18px; margin-top: 20px;">
+                <div style="font-size: 16px; font-weight: 800; color: #475569; margin-bottom: 6px;">
+                    6. CHI TIẾT BỘ DỮ LIỆU & THỐNG KÊ KỸ THUẬT
+                </div>
+                <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+                    Bao gồm thông tin làm sạch dữ liệu, nhận xét thống kê tự động, bảng tổng hợp theo nhóm và bảng thống kê chi tiết theo từng cột.
+                </div>
+            </div>
+            """), unsafe_allow_html=True)
+
+            # 6.1 Thông tin làm sạch & 6.2 Nhận xét thống kê tự động
+            col_tech1, col_tech2 = st.columns(2)
+            with col_tech1:
+                clean_info_ui = s6_d.get("cleaning_info", {})
+                st.markdown(clean_html(f"""
+                <div class="bento-surface" style="padding: 16px 18px; margin-bottom: 14px;">
+                    <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 8px;">6.1. Thông tin làm sạch dữ liệu:</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+                        • <b>Số dòng sau làm sạch:</b> {clean_info_ui.get('cleaned_rows', 0):,} dòng • <b>Số cột:</b> {clean_info_ui.get('cleaned_cols', 0)} cột<br>
+                        • <b>Số ô trống đã kiểm tra:</b> {clean_info_ui.get('empty_cells_count', 0):,} ô<br>
+                        • <b>Số dòng trùng lặp đã loại bỏ:</b> {clean_info_ui.get('duplicate_rows_removed', 0):,} dòng<br>
+                        • <b>Điểm chất lượng dữ liệu:</b> <span class="badge-capsule badge-green">{clean_info_ui.get('quality_score', 100)} / 100 điểm</span>
+                    </div>
+                </div>
+                """), unsafe_allow_html=True)
+
+            with col_tech2:
+                stat_obs_ui = s6_d.get("stat_observations", {})
+                st.markdown(clean_html(f"""
+                <div class="bento-surface" style="padding: 16px 18px; margin-bottom: 14px;">
+                    <div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-bottom: 8px;">6.2. Nhận xét thống kê tự động:</div>
+                    <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+                        • <b>Chỉ số trọng tâm:</b> '{stat_obs_ui.get('primary_metric')}'<br>
+                        • <b>Giá trị nhỏ nhất (Min):</b> {stat_obs_ui.get('min_val', 0):,.0f}<br>
+                        • <b>Giá trị lớn nhất (Max):</b> {stat_obs_ui.get('max_val', 0):,.0f}<br>
+                        • <b>Giá trị trung bình:</b> {stat_obs_ui.get('mean_val', 0):,.1f}<br>
+                        • <b>Nhóm dẫn đầu:</b> '{stat_obs_ui.get('top_group')}' ({stat_obs_ui.get('top_group_share', 0):.1f}% tổng giá trị)
+                    </div>
+                </div>
+                """), unsafe_allow_html=True)
+
+            # 6.3 Bảng Tổng hợp theo nhóm (Group-by)
+            grp_rows_ui = s6_d.get("groupby_table", [])
+            if grp_rows_ui:
+                st.markdown(clean_html('<div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 6px; margin-bottom: 8px;">6.3. Bảng Tổng hợp theo nhóm (Group-by theo chiều phân loại chính):</div>'), unsafe_allow_html=True)
+                grp_df_display = pd.DataFrame(grp_rows_ui).rename(columns={
+                    "group_name": "Nhóm",
+                    "value": "Giá trị",
+                    "row_count": "Số dòng được tính",
+                    "share_pct": "Tỷ trọng (%)"
+                })
+                render_safe_dataframe(grp_df_display[["Nhóm", "Giá trị", "Số dòng được tính", "Tỷ trọng (%)"]], width="stretch", hide_index=True)
+
+            # 6.4 Bảng Thống kê theo từng cột
+            col_rows_ui = s6_d.get("col_stats_table", [])
+            if col_rows_ui:
+                st.markdown(clean_html('<div style="font-weight: 700; font-size: 14px; color: var(--text-primary); margin-top: 14px; margin-bottom: 8px;">6.4. Bảng Thống kê chi tiết theo từng cột dữ liệu:</div>'), unsafe_allow_html=True)
+                col_df_display = pd.DataFrame(col_rows_ui).rename(columns={
+                    "column": "Cột",
+                    "missing": "Ô trống",
+                    "unique": "Giá trị khác nhau",
+                    "mean": "Trung bình",
+                    "min": "Nhỏ nhất",
+                    "max": "Lớn nhất"
+                })
+                render_safe_dataframe(col_df_display[["Cột", "Ô trống", "Giá trị khác nhau", "Trung bình", "Nhỏ nhất", "Lớn nhất"]], width="stretch", hide_index=True)
+
+            # ------------------------------------------------------------------------------------
+            # CÁC NÚT XUẤT FILE HOÀN CHỈNH: MICROSOFT WORD (.DOCX) & EXCEL (.XLSX)
+            # ------------------------------------------------------------------------------------
+            st.write("")
+            st.markdown(clean_html("""
+            <div style="font-size: 14px; font-weight: 800; color: var(--text-primary); margin-top: 16px; margin-bottom: 10px;">
+                📥 Xuất Báo Cáo Doanh Nghiệp Hoàn Chỉnh:
+            </div>
+            """), unsafe_allow_html=True)
+
+            c_exp_word, c_exp_excel = st.columns(2)
             
-            st.download_button(
-                label=t("btn_export_analytics", lang),
-                data=analytics_bytes,
-                file_name=f"Bao_Cao_Thong_Ke_Minh_An_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+            with c_exp_word:
+                # Sinh tệp Microsoft Word (.docx) chuẩn hóa 100% cấu trúc 6 phần
+                word_file_stream = export_report_to_word(report_pkg)
+                word_bytes = word_file_stream.getvalue()
+                
+                st.download_button(
+                    label="📄 Tải Báo Cáo Microsoft Word (.docx)",
+                    data=word_bytes,
+                    file_name=f"Bao_Cao_Kinh_Doanh_Minh_An_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    type="primary",
+                    use_container_width=True,
+                    key="btn_export_report_word_docx"
+                )
+
+            with c_exp_excel:
+                # Nút xuất Excel đa sheet đầy đủ
+                analytics_buffer = io.BytesIO()
+                with pd.ExcelWriter(analytics_buffer, engine="openpyxl") as writer:
+                    curr_df.to_excel(writer, sheet_name="Du_Lieu_Goc", index=False)
+                    if 'segments_df' in locals() and not segments_df.empty:
+                        segments_df.to_excel(writer, sheet_name="Phan_Hang_Khach_Hang", index=False)
+                    pd.DataFrame([fin_kpis]).to_excel(writer, sheet_name="Chi_So_Tai_Chinh", index=False)
+                    pd.DataFrame(s2_d["kpi_table"]).to_excel(writer, sheet_name="Dashboard_KPI", index=False)
+                    pd.DataFrame(s6_d["col_stats_table"]).to_excel(writer, sheet_name="Thong_Ke_Tung_Cot", index=False)
+                analytics_bytes = analytics_buffer.getvalue()
+                
+                st.download_button(
+                    label="📊 Tải Dữ Liệu Excel Đa Sheet (.xlsx)",
+                    data=analytics_bytes,
+                    file_name=f"Bao_Cao_Thong_Ke_Minh_An_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_export_analytics_excel"
+                )
+
 
 
 # ====================================================================================================

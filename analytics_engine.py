@@ -463,3 +463,8 @@ class StatisticalAnalyticsEngine:
         insights.append("⚠️ **Cảnh báo Rủi ro & Khuyến nghị:** Đề xuất kiểm tra công nợ đối với các đơn hàng trên 100 triệu VNĐ, đồng thời kiểm tra tồn kho tại các kho vệ tinh đối với sản phẩm máy chủ cấu hình cao trước khi chốt cam kết giao hàng.")
         
         return insights
+
+
+# Re-export Dynamic Business Report Generator & Microsoft Word (.docx) Exporter
+from business_report import DynamicBusinessReportGenerator, export_report_to_word
+
